@@ -1,0 +1,1079 @@
+---
+title: "Using k-means to cluster AFL players based on their average match day statistics"
+author: "Tom Perkins"
+date: "16 January 2021"
+output:
+  prettydoc::html_pretty:
+    theme: caymen
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load dependencies, results='hide', message=FALSE, warning=FALSE}
+# Data cleaning 
+library(snakecase)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(reshape)
+library(knitr)
+
+# Data visualisation
+library(corrplot)
+library(taucharts) # not available for ANZ version of R 
+library(purrr) # required for map_dbl
+library(GGally)
+library(ggplot2)
+library(plotly)
+library(factoextra)
+library(kableExtra)
+
+# Data analysis 
+library(ClustOfVar)
+library(cluster)
+```
+
+## Introduction
+
+In this markdown my goal is to provide a gentle introduction to exploratory cluster analysis, via principal components analysis & k-means
+
+My conduit for this question is a data-set I have curated myself that summarizes average game-day statistics of Australian Rules Football players (i.e. average kicks, handballs, tackles per game)
+
+This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for detailed AFL statistics 
+
+R users are fortunate that a wealth of data from these websites is accessible via the **["FitzRoy"](https://cran.r-project.org/web/packages/fitzRoy/index.html)** package
+
+I have covered the process of extracting, cleaning & modeling this data in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**
+
+```{r data load, results='hide', message=FALSE, warning=FALSE}
+# player data .csv 
+df.players <- read.csv("afl_player_statistics_pf.csv",
+                       header = TRUE, 
+                       stringsAsFactors = FALSE)
+```
+
+```{r print table preview, echo=FALSE}
+# Print table 
+kable(head(df.players)) %>% #head limits to just top rows
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
+```
+
+Each  of the 950 rows reflects a unique player record
+
+Columns one through four provide basic demographics (players name, team, games played)
+
+Columns five through 48 are *averaged* statistics (i.e. kicks, handballs, spoils, tacklers per game). These are the columns for which deeper analytics will be conducted
+
+## Data preparation
+
+There are two important steps I have taken before commencing further analysis 
+
+Firstly, I have removed *any player* to take part in less than 22 games (equivalent to a single full-season). 
+
+My reasoning was that players with a small number of games may skew the data. For example, younger, inexperienced players with a small sample of games will likely have limited output, which for my purposes would be tantamount to statistical noise. Similarly, players with a small number of games due to injury may generate numbers otherwise not reflective of their output over a larger sample size
+
+```{r minimum games, message=FALSE, warning=FALSE}
+# filter to only players who have played at least an entire season worth of games 
+df.players <- df.players %>%
+  dplyr::filter(Games >= 22)
+```
+
+Secondly, I have *scaled* the data. 
+
+Scaling is a recommended step for k-means, & a mandatory step for principal components analysis 
+
+If a dataset includes measures on different scales, or at a minimum has variables with different variances, failure to scale will bias the analysis in favor of variables with large differences 
+
+The present data clearly has different scales. For example, *metres gained* is an averaged measure of distance, *disposal efficiency* is expressed as an averaged percentage, whilst *goals* is an averaged count of a specific statistic. 
+
+It also contains metrics with different variances. The range of values for *goals* spans from an average of zero to 2.96 per game, whilst *metres gained* spans from an averaged low of 28m, to a high of 484m per game 
+
+By using scale(), & passing the arguments *center = TRUE* & *scale = TRUE*, the data is converted into **z-scores** - an expression of the number of standard deviation units by which an individual value is above or below the mean of the measurement in question
+
+z-scores improve multivariate analysis by reducing bias (aka. error) attributable to differences in magnitude between variables
+
+```{r scale, message=FALSE, warning=FALSE}
+# scale all of our variables into z-scores
+  # center = TRUE : remove the mean
+  # scale = TRUE : divide by SD
+df.players.scaled <- as.data.frame(scale(df.players[,5:48],
+                                         center = TRUE, 
+                                         scale = TRUE))
+```
+
+## Data model 
+
+As mentioned, this analysis is largely exploratory. Any combination of the 44 included match-day metrics could be included to perform a k-means analysis. 
+
+Something crucial to be mindful of from the outset is that inclusion of *redundant* variables in the model (i.e. a metric that is ineffective at grouping the data) can have a *negative impact* on the eventual results by obscuring useful variance
+
+As such, identifying a satisfactory combination of variables is critical to the eventual success of the cluster analysis. This process is an iterative & patient process, that is greatly aided by subject matter-expertise. Even then, some aspect of trial-&-error is required, adding & subtracting variables, & documenting the subsequent effect on the output 
+
+In the interest of brevity I won't labor on the various attempted models for this markdown (aside from some appendicised learnings). Suffice to say, the eventual model relied upon intuition around what match-day statistics would likely discriminate players, then trial & error using different combinations
+
+Some metrics were especially conspicuous (i.e. *hitouts* are something very few players engage in), whilst others were more ambiguous (*uncontested possessions* would be high for midfielders, but may not discriminate midfielders from defenders)
+
+The 15 included variables can be observed in the subsetted dataframe below:
+
+```{r scale1, message=FALSE, warning=FALSE}
+set.seed(123)
+```
+
+```{r Model 1 (1), message=FALSE, warning=FALSE}
+M1 <- df.players.scaled %>%
+  select(
+    hitouts,
+    hitouts_to_advantage,
+    ruck_contests,
+    score_launches,
+    clearances,
+    contested_possessions,
+    uncontested_possessions,
+    centre_clearances,
+    stoppage_clearances,
+    goals,
+    tackles_inside_fifty,
+    f50_ground_ball_gets,
+    rebounds,
+    contest_def_one_on_ones,
+    disposal_efficiency_percentage
+    )
+```
+
+With our data finalized we can jump into the principal components analysis 
+
+## Principal Components Analysis 
+
+Principal Component Analysis (PCA) is a common technique applied *prior* to cluster analysis. It is a method for **dimensionality-reduction** / **compression** of a dataset. It transforms a "larger set" of variables into a smaller set, that retains *most* of the variance of the larger set in a smaller number of components
+
+Although some information will be lost in compression, the idea is that a small degradation in accuracy is traded-off for an increase in model parsimony (kind of a stastical equivalent to the trade-off between a compressed MP3 compared to an uncompressed WAV file)
+
+Thus, *Principal components* are new variables, derived mathematically from a linear combination of the initial variables. 
+
+To paraphrase [this awesome guide](https://builtin.com/data-science/step-step-explanation-principal-component-analysis)
+
+*Principal components are calculated, such that most of the information/variance is compressed into the first components. In other words, a data-set with 10 variables will produce 10 principal components, but the derivation of principal components will maximize the amount of variance into the first component, then the second and so on. In effect, this process of dimensional reduction will allow a similar amount of variance from a 10 variable model to be extrapolated from a smaller number of principal components* 
+
+As mentioned, standardization is critical for PCA. The reason being that it is quite sensitive to the variances of the initial variables
+
+PCA can be [beneficial for noise reduction](https://stats.stackexchange.com/questions/183236/what-is-the-relation-between-k-means-clustering-and-pca#:~:text=clustering%20pca%20k%2Dmeans,in%20practice%20(noise%20reduction).), although this benefit is tenuous & dependent on the data 
+
+PCA does have one very obvious benefit in that it allows for simpler visualization of cluster analysis results. It is nigh on impossible to provide a simple visualization of higher-dimensional data. As such, dimensional reduction allows for more information from the analysis to be visualized in a two-dimensional format
+
+### Covariance Matrix Computation
+
+Key to the concept of dimensional reduction is the covariance matrix, which summarizes the relationship between variables included in the PCA. It is likely that some variables will share covariance with one another, in such a way that they contain redundant information
+
+Note here that covariance is distinct from correlation - two related, but different concepts. Correlation values are *standardized* (range between -1 and 1) & measure *relationship strength* & *direction*. Covariance values are *non-standardised*, & measure *only direction*. [Click here for a more in depth examination of this topic](https://towardsdatascience.com/let-us-understand-the-correlation-matrix-and-covariance-matrix-d42e6b643c22#:~:text=between%20two%20variables.-,%E2%80%9CCovariance%E2%80%9D%20indicates%20the%20direction%20of%20the%20linear%20relationship%20between%20variables,a%20function%20of%20the%20covariance.) The role of covariance, a non-standardized metric, in derivation of principal components is why scaling is essential prior to analysis  
+
+### Eigenvectors & Eigenvalues
+
+How are the principal components constructed? They are constructed sequentially
+
+The first principal component is mathematically derived to: 
+
+(1) **Maximize variance** - highest spread of values along line of best fit - calculated as an average of the squared distances 
+(2) **Minimized Error** - shortest distance of data points from their position on line of best fit, calculated as an average of the squared distances from the projected points
+
+The sum of *variance* & *error* is constant, so the statistical sorcery of PCA is a best fitting line that both maximizes variance & minimizes error
+
+**Eigenvectors** are the **directions** of the axes that possess the most variance, and the **eigenvalues** are a numerical indicator (coefficient) expressing the **amount** of variance in each principal component. The smallest eigenvalues correspond to the directions with the least variation
+
+The second principal component is then calculated in precisely the same way, with the condition that it is *orthogonal* to the first principal component. In other words, in this rotated factor space, it is at 90 degrees, & completely uncorrelated with the first principal component. This process is completed for as many principal components as there are variables in the data-set
+
+[This link](https://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues) provides a more in depth discussion of principal components, alongside some amazing two-dimensional animations illustrating the concept
+
+The mathematics of PCA is quite complex, but fortunately, the programming is very straight-forward & can be completed in a line-of-code  
+
+```{r PCA (1), message=FALSE, warning=FALSE}
+# Singular value decomposition 
+# examines the covariances / correlations between individuals
+M1.pca <- prcomp(M1)
+```
+
+For illustrative purposes, I have calculated the eigenvalue for the first principal component (*square of the standard deviation of the principal component*)
+
+By dividing the first eigenvalue by the sum of all eigenvalues, we can determine percentage of variance explained - **37.43%**
+
+```{r PCA (2), message=FALSE, warning=FALSE}
+# Calculate Eigenvalues
+M1.ev <- M1.pca$sdev^2 
+# Calculate variance explained by the first principal component 
+(M1.ev[1] / sum(M1.ev))*100
+```
+
+Fortunately, passing our PCA to the function *"summary"* will auto-calculate the standard deviation, total variance, & cumulative variance explained for each principal component. This is an especially useful summary, as it shows 85% of variance in this dataset can be explained by the first three principal components - not bad! 
+
+```{r PCA (2), message=FALSE, warning=FALSE}
+summary(M1.pca)
+```
+
+The variance explained per principal component can be visualized with a **scree plot** - a simple bar-chart. Scree plots provide a valuable visual representation of how many principal components are required before variance explained drops off. Corroborating the raw numbers, we can clearly see that **three** principal components in this data-set is the magic number 
+
+```{r PCA (3), message=FALSE, warning=FALSE}
+fviz_eig(M1.pca)
+```
+
+Here we reach the punchline of a PCA, & the purpose of dimension-reduction. In this analysis, three principal components can explain 85% of variance from our original model of 15 match-day statistics
+
+An obvious limitation of principal components is that they are less easy to interpret than raw variables. Fortunately, we can explore the variable **loadings** of the principal components. [Loadings are the covariances/correlations between the original variables and the unit-scaled components](https://stats.stackexchange.com/questions/143905/loadings-vs-eigenvectors-in-pca-when-to-use-one-or-another)
+
+By extracting variable loadings we generate a dataframe where each column represents a principal component, & each row represents the original variables correlation with each principal components [Datacamp](https://www.datacamp.com/community/tutorials/pca-analysis-r) has a nice tutorial explaining this further
+
+
+```{r PCA (4), message=FALSE, warning=FALSE}
+M1.pca.df <- data.frame(M1.pca$rotation)
+```
+
+For the first four principal components, we can crudely summarize which variables demonstrated the strongest association to each principal component 
+
+**PC 1** - Clearances / Contested possessions
+**PC 2** - Score Launches / Hitouts to Advantage
+**PC 3** - Uncontested Possessions / contested possessions / Rebounds
+**PC 4** - Contested Defensive 1 on 1s 
+
+To make this more tangible, we can visualize **all** of the variable loadings for the *first two* principal components. Each point on the plot reflects an individual player
+
+```{r PCA (5), message=FALSE, warning=FALSE}
+autoplot(M1.pca, data = M1,
+         loadings = TRUE, 
+         loadings.colour = 'blue',
+         loadings.label = TRUE, 
+         loadings.label.size = 2,
+         loadings.label.repel=T)
+```
+
+Principal component [1] is depicted along the x-axis, while principal component [2] is depicted along the y-axis. 
+
+The strength of each variables contribution to these two components is depicted by the blue arrowed-lines. The strongest variables related to component [1] are pulled furthest to the right, while the strongest variables related to component [2] are pulled furthest to the top of the plot 
+
+It is notable the variable loadings appear to *clump* into four distinct patterns. Immediately to any fan of AFL, this shouldn't be surprising. At face value, they align closely with the four broad positions for a player on the ground
+
+Working clockwise around the plot
+
+hit-outs, ruck contests, score-launches fit the profile of a **ruck man**
+
+clearances, contested possessions fit the profile of a **midfielder**
+
+goals, tackles inside 50 fit the profile of a **forward**
+
+rebounds, defensive one-on-one contests the profile of a **defender**
+
+With this insight, an obvious next-step in this analysis is to explore whether the data-set may be amenable to clustering 
+
+```{r PCA (6), message=FALSE, warning=FALSE}
+# coordinates for each player for first 3 principal components into dataframe
+M1.pca.pc3 <- data.frame(M1.pca$x[,1:3]) 
+```
+
+## k-means 
+
+**"Clustering"** is a technique used to explore sub-groups of observations within a data set. Observations are grouped in such a way that they are more similar to one another (by some statistical criteria), than to observations in other groups
+
+**k-means clustering** is probably the most common algorithm for partitioning 
+
+k-means 'groups' observations (i.e. players) into clusters formed by observations that demonstrate high *intra-class similarity*. This is measured by the clusters *'centroid'* - the mean value of points assigned to the cluster
+
+In k-means clustering, 'k' represents the number of clusters the data will be separated into. k is *pre-specified* by the analyst, & can be determined in two ways
+
+**Internal indices** - to measure the goodness of a clustering structure without external information (Tseng et al., 2005). In this case, relying upon statistical outputs such as elbow plots / silhouette plots
+
+**External indices** - to evaluate the results of a clustering algorithm based 
+on a known cluster structure of a data set. In other words, already known, real-world groupings
+
+For more information on k-means/principal components analysis, [this towards data science](https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff) article is an easily digestible summary 
+
+Although the PCA gabe us some clues, to be thorough, lets run through both processes to determine the k value for this analysis
+
+### Internal Indices 
+
+#### Elbow Method
+
+The basic idea behind cluster partitioning methods, such as k-means clustering, is to define clusters such that the total intra-cluster variation (known as total within-cluster variation or total within-cluster sum of square) is minimized
+
+The total within-cluster sum of square (wss) measures the compactness of the clustering and the desire is for this to be as small as possible 
+
+Thus, we can use the following algorithm to define the optimal clusters:
+
+Compute clustering algorithm (e.g., k-means clustering) for different values of k
+For instance, by varying k from 1 to 10 clusters
+
+For each k, calculate the total within-cluster sum of square (wss)
+
+Plot the curve of wss according to the number of clusters k.
+
+The location of a bend (knee) in the plot is generally considered as an indicator of the appropriate number of clusters.
+
+```{r k means (1), message=FALSE, warning=FALSE}
+wss <- (nrow(M1)-1) * sum(apply(M1, 2, var))
+for (i in 1:15) wss[i] <- sum(kmeans(M1,
+                                     centers = i)$withinss)
+
+plot(1:15, wss, type = "b", xlab = "Number of Clusters",
+     ylab = "Within groups sum of squares")
+```
+
+#### Silhouette Method 
+
+### External Indices 
+
+
+princomp
+Spectral decomposition which examines the covariances / correlations between variables
+
+prcomp
+Singular value decomposition which examines the covariances / correlations between individuals
+
+# http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r model 1 (2), message=FALSE, warning=FALSE}
+# fit model into 3 clusters 
+KM1 <- kmeans(Model1, 
+              centers = 2)
+KM1 # 67.1%
+```
+
+```{r model 2 (3), message=FALSE, warning=FALSE}
+P1 <- fviz_cluster(KM1, 
+                   data = Model1) # save to access $data
+
+M1_Data <- P1$data # this is all you need
+
+# calculate the convex hull using chull(), for each cluster
+M1_Data_Hull <- M1_Data %>%
+  group_by(cluster) %>%
+  slice(chull(x, y))
+
+M1_ColourTheme <- c("#E4796A", "#638DCB")
+```
+
+```{r model 2 (4), message=FALSE, warning=FALSE}
+# plot: you can now customize this by using ggplot sintax
+ggplot(M1_Data, aes(x, y)) + 
+  geom_point(shape = 1) +
+  geom_polygon(data = M1_Data_Hull, 
+               alpha = 0.5, 
+               aes(fill = cluster, linetype = cluster)) +
+  scale_color_manual(values = M1_ColourTheme) +
+  scale_fill_manual(values = M1_ColourTheme) +
+  
+  theme_grey(base_size = 10)+
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        plot.background = element_rect(fill = "#fcf9f0"),
+        panel.background = element_blank(),
+        legend.background = element_rect(fill = "#fcf9f0"),
+        panel.border = element_blank(),
+        axis.line.x = element_line(color = "black"),
+        axis.line.y = element_line(color = "black"),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0))) # adjust position ... top, bottom, left, right
+```
+
+
+## Model [2] - external indices 
+
+```{r scale, message=FALSE, warning=FALSE}
+set.seed(123)
+```
+
+```{r Model 2 (1), message=FALSE, warning=FALSE}
+Model_2 <- players_scaled %>%  
+  select(
+    # Player_Name,
+    # these ruck-related stats distinguish ruckmen entirely from the group
+      # 90.6% variance explained with just these stats
+    hitouts,
+    hitouts_to_advantage,
+    ruck_contests,
+    score_launches,
+    # this midfield related fields produces some separation of midfielders, 
+    # reducing overall variance
+    clearances,
+    contested_possessions,
+    uncontested_possessions,
+    centre_clearances,
+    stoppage_clearances,
+    # forwards
+    goals,
+    tackles_inside_fifty,
+    f50_ground_ball_gets,
+    # defenders
+    rebounds,
+      # one_percenters, keep this out, makes too similar to rucks
+      # intercepts, # really improves variance, but muddies model
+    contest_def_one_on_ones,
+    disposal_efficiency_percentage
+  )
+```
+
+```{r model 2 (2), message=FALSE, warning=FALSE}
+# fit model into 3 clusters 
+K_M2 <- kmeans(Model_2, 
+                centers = 4)
+K_M2 # 67.1%
+```
+
+```{r model 2 (3), message=FALSE, warning=FALSE}
+p <- fviz_cluster(K_M2, 
+                  data = Model_2) # save to access $data
+
+data <- p$data # this is all you need
+
+# calculate the convex hull using chull(), for each cluster
+hull_data <- data %>%
+  group_by(cluster) %>%
+  slice(chull(x, y))
+
+colour_theme <- c("#E4796A", "#E7B573", "#B0AA96", "#638DCB")
+```
+
+```{r model 2 (4), message=FALSE, warning=FALSE}
+# plot: you can now customize this by using ggplot sintax
+ggplot(data, aes(x, y)) + 
+  geom_point(shape = 1) +
+  geom_polygon(data = hull_data, 
+               alpha = 0.5, 
+               aes(fill = cluster, linetype = cluster)) +
+  scale_color_manual(values = colour_theme) +
+  scale_fill_manual(values = colour_theme) +
+  
+  theme_grey(base_size = 10)+
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        plot.background = element_rect(fill = "#fcf9f0"),
+        panel.background = element_blank(),
+        legend.background = element_rect(fill = "#fcf9f0"),
+        panel.border = element_blank(),
+        axis.line.x = element_line(color = "black"),
+        axis.line.y = element_line(color = "black"),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0))) # adjust position ... top, bottom, left, right
+```
+
+
+
+
+
+
+
+Let's read-in FitzRoy, and all other packages we will use for analysis  
+
+```{r Load dependencies, results='hide', message=FALSE, warning=FALSE}
+# Data extraction 
+library(devtools)
+library(fitzRoy)
+# Data cleaning 
+library(snakecase)
+library(tidyr)
+library(dplyr)
+library(reshape)
+library(knitr)
+# Data visualisation
+library(kableExtra)
+library(corrplot)
+library(taucharts)
+library(kableExtra)
+# Data analysis 
+library(ClustOfVar)
+library(cluster)
+```
+
+FitzRoy provides a straight-forward function to read-in data from Footywire (*"get_footywire_stats"*). The only required input is which matches to include in the data-extract via the websites **Match_ids**
+
+The range of "match_ids" has been limited to the 207 games contested in the 2019 season. Match_ids can be identified via the web-URL for each game on FootyWire
+
+I encountered some buggy-behaviour reading in every required match in a single line of code, but found splitting it out worked OK 
+
+The match-data from footywire takes ~ 10-15 minutes to read, so patience is required :)
+
+```{r load data, results='hide', message=FALSE, warning=FALSE}
+# Extract all games from 2019 AFL season
+footywire2 <- get_footywire_stats(ids = 9876:9927) 
+footywire1 <- get_footywire_stats(ids = 9721:9875) 
+```
+
+```{r load data2, results='hide', message=FALSE, warning=FALSE}
+# Extract all games from 2020 AFL season
+footywire3A <- get_footywire_stats(ids = 9928:9936)
+footywire3B <- get_footywire_stats(ids = 10126:10141)
+footywire3BB <- get_footywire_stats(ids = 10143:10152)
+footywire3C <- get_footywire_stats(ids = 10182:10190)
+```
+
+``````{r load data456, results='hide', message=FALSE, warning=FALSE}
+footywire3D <- get_footywire_stats(ids = 10209:10326) 
+```
+
+
+```{r load data3, results='hide', message=FALSE, warning=FALSE}
+# Extract all games from 2018 AFL season
+footywire4 <- get_footywire_stats(ids = 9514:9720) 
+```
+
+```{r load data4, results='hide', message=FALSE, warning=FALSE}
+# Extract all games from 2017 AFL season
+footywire5 <- get_footywire_stats(ids = 9307:9513) 
+```
+
+```{r bind data, results='hide', message=FALSE, warning=FALSE}
+# Bind into a single data-frame 
+Season2017to2020 <- rbind(footywire1, footywire2, footywire3A, footywire3B, footywire3BB, footywire3C, footywire3D, footywire4, footywire5)
+# lower case, under_score all column titles
+names(Season2017to2020) <- to_snake_case(names(Season2017to2020))
+# remove original extracts
+# footywire1 <- NULL
+# footywire2 <- NULL
+```
+
+The structure of this data-extract is 207 games x 44 selected players for each game, which produces 9108 rows of data
+
+Each row reports the statistics of an individual player in every game 
+
+This affords great flexibility to explore both match-level and player-level statistics 
+
+```{r print table preview, echo=FALSE}
+# Print table 
+kable(head(Season2017to2020)) %>% #head limits to just top rows
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
+```
+
+## Re-shape & aggregate  
+
+Two key steps required to to transform this data for analysis are:
+
+* Aggregate the data so each row reflects match-level statistics rather than        player level, &
+* Pivot the data so every row reflects a unique game of the season
+  
+We will use several "tidyverse" functions to first aggregate our match-level statistics 
+
+```{r change variable types, message=FALSE, warning=FALSE}
+# tally up all key statistics per game, per team 
+Ag <- Season2017to2020 %>%
+  dplyr::select(season, 
+         round,
+         date,
+         team, 
+         opposition, 
+         status,
+         cp, # CONTESTED POSSESSION
+         up, # UNCONTESTED POSSESSION 
+         de, # DISPOSAL EFFICIENCY 
+         one_percenters, # ONE PERCENTERS 
+         mg, # METRES GAINED
+         to, # TURNOVER 
+         k, # KICKS
+         hb, # HANDBALLS
+         d, # DISPOSALS
+         m, # MARK
+         i_50, # INSIDE 50
+         cl, # CLEARANCE
+         cg, # CLANGERS
+         r_50, # REBOUND 50 
+         ff, # FREES FOR 
+         fa, # FREES AGAINST
+         cm, # CONTESTED MARKS
+         ga_15, # GOAL ASSISTS
+         bo, # BOUNCES
+         ccl, # CENTRE CLEARANCES
+         scl, # STOPPAGE CLEARANCE 
+         itc, # INTERCEPTS
+         si, # SCORE INVOLVEMENTS 
+         t_5, # TACKLES INSIDE 50
+         match_id) %>% 
+  group_by(match_id, 
+           team, 
+           opposition, 
+           status,
+           season, 
+           round,
+           date) %>%
+  summarise(
+    CP = sum(cp),
+    UP = sum(up),
+    DE = round(mean(de),1),
+    OP = sum(one_percenters),
+    MG = round(sum(mg),1),
+    TO = sum(to),
+    K = sum(k),
+    HB = sum(hb),
+    D = sum(d),
+    M = sum(m),
+    I50 = sum(i_50),
+    CL = sum(cl),
+    CG = sum(cg),
+    R50 = sum(r_50),
+    FF = sum(ff),
+    FA = sum(fa),
+    CM = sum(cm),
+    GA = sum(ga_15),
+    BO = sum(bo),
+    CCL = sum(ccl),
+    SCL = sum(scl),
+    ITC = sum(itc),
+    SI = sum(si),
+    T5 = sum(t_5),
+  )
+```
+
+However, we have one further issue to address: Data for each match is split across two rows - one for the home team, the other for the away team. The required end-state is for data from both teams to be summarized in a single row 
+
+The dplyr function **spread** can *almost* solve this issue. However, it only accepts one "value" argument & we therefore are not able to pivot over multiple variables
+
+Fortunately, clever user [danr from the R Studio Community](https://community.rstudio.com/t/spread-with-multiple-value-columns/5378/2) wrote a function augmenting the spread-command to be able to do this. We will implement this below:
+
+```{r additional date columns }
+# remove opposition 
+Ag$opposition <- NULL
+
+# Function to spread across multiple values 
+myspread <- function(df, key, value) {
+  # quote key
+  keyq <- rlang::enquo(key)
+  # break value vector into quotes
+  valueq <- rlang::enquo(value)
+  s <- rlang::quos(!!valueq)
+  df %>% gather(variable, value, !!!s) %>%
+    unite(temp, !!keyq, variable) %>%
+    spread(temp, value)
+}
+
+# spread - so each row reflects a single game 
+Ag <- Ag %>%
+  myspread(key = status, value = c(team, CP, UP, DE, OP, MG, TO, K, HB, D, M,
+                                   I50, CL, CG, R50, FF, FA, CM, GA, BO, CCL,
+                                   SCL, ITC, SI, T5))
+```
+
+& after some final tidying ... 
+
+```{r additional date columns2 }
+# create common key
+Ag$JOIN_ID <- paste(Ag$date, "-", 
+                               Ag$Home_team, "-", 
+                               Ag$Away_team)
+
+# Re-order Columns
+Ag <- Ag[,c(2,3,4,1,55,52,27,30:51,53:54,5:26,28:29)]
+
+# Ensure data-set is actually a dataframe
+Ag <- as.data.frame(Ag)
+```
+
+We now have an aggregated, pivoted, tidied data-frame. Each game is captured as a unique row, and player statistics have been aggregated into team statistics. 
+
+To be sure the aggregation worked, I spot-checked a number of random matches against official match-day statistics. This confirmed the results of this analysis were consistent with official statistics
+
+However an important feature is missing - **the outcome of the game**. We can't get too far with these statistics if the winning team is unknown
+
+The match-result could in-theory be determined from this data-set. It would require calculating the overall team-scores from individual players goals & behinds
+
+However I decided an easier method would be to source this data directly from [AFL-tables](https://afltables.com/afl/afl_index.html), accessible again from the FitzRoy package  
+
+```{r additional score columns, message = FALSE, warning = FALSE }
+# read in data from AFL tables
+AT <- get_afltables_stats(start_date = '2017-01-01',
+                          end_date = '2020-12-31')
+
+# replace dots with underscores, all lower case
+names(AT) <- to_snake_case(names(AT))
+```
+
+In order to combine the two data-sets, a common key is required. By combining three columns which exist in **both data-sets** (date, home team & away team), I was able to create my own common key
+
+```{r change variable type }
+# create a common key 
+AT$JOIN_ID <- paste(AT$date, "-", 
+                    AT$home_team, "-", 
+                    AT$away_team)
+
+# Select scores - the only rows we would like to keep from this table 
+AT <- dplyr::select(AT, 
+                  JOIN_ID, 
+                  home_score, 
+                  away_score)
+
+# remove columns which are not unique 
+AT <- AT %>% distinct(JOIN_ID, .keep_all = TRUE)
+
+# Convert to dataframe
+AT <- as.data.frame(AT)
+```
+
+After some further tidying (error correction & harmonizing team names), the two data-sets are ready to be joined by the calculated **JOINID** column 
+
+```{r merge teams}
+# Ensure join columns are comparable 
+AT$JOIN_ID <- to_snake_case(AT$JOIN_ID)
+Ag$JOIN_ID <- as.character(Ag$JOIN_ID)
+Ag$JOIN_ID <- to_snake_case(Ag$JOIN_ID)
+
+# Other corrections
+AT$JOIN_ID <- gsub("greater_western_sydney", "gws", AT$JOIN_ID)
+AT$JOIN_ID <- gsub("brisbane_lions", "brisbane", AT$JOIN_ID)
+
+# Correct error in AFL tables listing Geelong as home-side in the 2019 Preliminary Final
+AT$JOIN_ID <- gsub("2019_09_20_geelong_richmond", "2019_09_20_richmond_geelong", AT$JOIN_ID)
+
+# Join Footywire & AFL tables 
+Ag <- left_join(Ag, AT, by = "JOIN_ID")
+```
+
+& some final tidying to re-order our variables, remove redundant variables, & convert statistics to numeric format
+
+```{r merge teams 2}
+# Re-order columns 
+Ag <- Ag[,c(1:7, 56:57, 8:55)]
+
+# Remove IDs - no longer required
+Ag$match_id <- NULL
+Ag$JOIN_ID <- NULL
+
+# need to change all stats columns from character to numeric 
+cols = c(8:55)    
+Ag[,cols] = apply(Ag[,cols], 2, function(x) as.numeric(as.character(x)));
+```
+
+Our data model is *nearly* complete with match-statistics for both home & away teams, & the total score for each team 
+
+The next step is to calculate the statistical **"differentials"** between the winning & losing teams 
+
+An issue is the winning-score could come from either the home or away score columns. As such a simple subtraction of these fields won't work.
+
+The necessary work-around is to split our data in two: *"winning home team"* & *"winning away team"*, then recombine them into an overall *"winning differentials"* data-frame
+
+Let's start with winning home team:
+
+```{r winning home team}
+# "HOME" Winners
+# Calculate a "winning margin" score - ultimately we want to see how different
+# statistics are related to this outcome variable 
+Ag$margin <- Ag$home_score - Ag$away_score
+
+# Subset only "home" team wins 
+WinnersHome <- filter(Ag, margin >= 1)
+
+# Create differential columns 
+WinnersHome$BO_Diff <- WinnersHome$Home_BO - WinnersHome$Away_BO
+WinnersHome$CCL_Diff <- WinnersHome$Home_CCL - WinnersHome$Away_CCL
+WinnersHome$CG_Diff <- WinnersHome$Home_CG - WinnersHome$Away_CG
+WinnersHome$CL_Diff <- WinnersHome$Home_CL - WinnersHome$Away_CL
+WinnersHome$CM_Diff <- WinnersHome$Home_CM - WinnersHome$Away_CM
+WinnersHome$CP_Diff <- WinnersHome$Home_CP - WinnersHome$Away_CP
+WinnersHome$D_Diff <- WinnersHome$Home_D - WinnersHome$Away_D
+WinnersHome$DE_Diff <- WinnersHome$Home_DE - WinnersHome$Away_DE
+WinnersHome$BO_Diff <- WinnersHome$Home_BO - WinnersHome$Away_BO
+WinnersHome$FA_Diff <- WinnersHome$Home_FA - WinnersHome$Away_FA
+WinnersHome$FF_Diff <- WinnersHome$Home_FF - WinnersHome$Away_FF
+WinnersHome$GA_Diff <- WinnersHome$Home_GA - WinnersHome$Away_GA
+WinnersHome$HB_Diff <- WinnersHome$Home_HB - WinnersHome$Away_HB
+WinnersHome$I50_Diff <- WinnersHome$Home_I50 - WinnersHome$Away_I50
+WinnersHome$ITC_Diff <- WinnersHome$Home_ITC - WinnersHome$Away_ITC
+WinnersHome$K_Diff <- WinnersHome$Home_K - WinnersHome$Away_K
+WinnersHome$M_Diff <- WinnersHome$Home_M - WinnersHome$Away_M
+WinnersHome$MG_Diff <- WinnersHome$Home_MG - WinnersHome$Away_MG
+WinnersHome$OP_Diff <- WinnersHome$Home_OP - WinnersHome$Away_OP
+WinnersHome$R50_Diff <- WinnersHome$Home_R50 - WinnersHome$Away_R50
+WinnersHome$SCL_Diff <- WinnersHome$Home_SCL - WinnersHome$Away_SCL
+WinnersHome$SI_Diff <- WinnersHome$Home_SI - WinnersHome$Away_SI
+WinnersHome$TO_Diff <- WinnersHome$Home_TO - WinnersHome$Away_TO
+WinnersHome$UP_Diff <- WinnersHome$Home_UP - WinnersHome$Away_UP
+WinnersHome$T5_Diff <- WinnersHome$Home_T5 - WinnersHome$Away_T5
+
+# Designate these games as "home" team winning 
+WinnersHome$Winner <- "HOME"
+WinnersHome$WinningTeam <- WinnersHome$Home_team
+
+cols = c(1:7,82,56:81) 
+WinnersHome <- WinnersHome[, cols]
+```
+
+Repeat this step for "winning away team"
+
+```{r winning away team}
+# "AWAY" Winners
+# Subset only "away" team wins 
+WinnersAway <- filter(Ag, margin <= -1)
+
+# Create differential columns 
+WinnersAway$BO_Diff <- WinnersAway$Away_BO - WinnersAway$Home_BO
+WinnersAway$CCL_Diff <- WinnersAway$Away_CCL - WinnersAway$Home_CCL
+WinnersAway$CG_Diff <- WinnersAway$Away_CG - WinnersAway$Home_CG
+WinnersAway$CL_Diff <- WinnersAway$Away_CL - WinnersAway$Home_CL
+WinnersAway$CM_Diff <- WinnersAway$Away_CM - WinnersAway$Home_CM
+WinnersAway$CP_Diff <- WinnersAway$Away_CP - WinnersAway$Home_CP
+WinnersAway$D_Diff <- WinnersAway$Away_D - WinnersAway$Home_D
+WinnersAway$DE_Diff <- WinnersAway$Away_DE - WinnersAway$Home_DE
+WinnersAway$BO_Diff <- WinnersAway$Away_BO - WinnersAway$Home_BO
+WinnersAway$FA_Diff <- WinnersAway$Away_FA - WinnersAway$Home_FA
+WinnersAway$FF_Diff <- WinnersAway$Away_FF - WinnersAway$Home_FF
+WinnersAway$GA_Diff <- WinnersAway$Away_GA - WinnersAway$Home_GA
+WinnersAway$HB_Diff <- WinnersAway$Away_HB - WinnersAway$Home_HB
+WinnersAway$I50_Diff <- WinnersAway$Away_I50 - WinnersAway$Home_I50
+WinnersAway$ITC_Diff <- WinnersAway$Away_ITC - WinnersAway$Home_ITC
+WinnersAway$K_Diff <- WinnersAway$Away_K - WinnersAway$Home_K
+WinnersAway$M_Diff <- WinnersAway$Away_M - WinnersAway$Home_M
+WinnersAway$MG_Diff <- WinnersAway$Away_MG - WinnersAway$Home_MG
+WinnersAway$OP_Diff <- WinnersAway$Away_OP - WinnersAway$Home_OP
+WinnersAway$R50_Diff <- WinnersAway$Away_R50 - WinnersAway$Home_R50
+WinnersAway$SCL_Diff <- WinnersAway$Away_SCL - WinnersAway$Home_SCL
+WinnersAway$SI_Diff <- WinnersAway$Away_SI - WinnersAway$Home_SI
+WinnersAway$TO_Diff <- WinnersAway$Away_TO - WinnersAway$Home_TO
+WinnersAway$UP_Diff <- WinnersAway$Away_UP - WinnersAway$Home_UP
+WinnersAway$T5_Diff <- WinnersAway$Away_T5 - WinnersAway$Home_T5
+
+# Designate these games as "home" team winning 
+WinnersAway$Winner <- "AWAY"
+
+# Designate these games as "home" team winning 
+WinnersAway$WinningTeam <- WinnersAway$Away_team
+
+cols = c(1:7,82,56:81) 
+WinnersAway <- WinnersAway[, cols]
+
+# Change margin to absolute
+WinnersAway$margin <- abs(WinnersAway$margin)
+```
+
+Now re-combine these two data-sets into our final data-frame of "winning differentials"
+
+```{r bind home and away}
+# Bind together 
+Matches <- rbind(WinnersHome, WinnersAway)
+
+# Alternative version with only numeric columns 
+cols = c(9:33)
+Matches_Numeric <- Matches[, cols]
+```
+
+Which results in the final data-model 
+
+Each row reflects a single match of the 2019 season, & includes: 
+
+* the teams involved in each match
+* the date of the match
+* which team won
+* the margin of the win
+* 24 "statistical differences" for the winning team 
+
+```{r print table preview3, echo=FALSE}
+kable(head(Matches)) %>% #head limits to just top rows
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
+```
+
+## Prioritise Statistics of Interest
+
+It's worth taking a moment to review the included statistics. Many metrics are very similar, so we would expect collinearity between them. Based on little more than intuition, I have opted to delete the below metrics: 
+
+* Removed "Frees-Against", as it is a perfect mirror of "Frees-For" - differences here are only really useful at an individual player level rather than in aggregate
+* Removed "centre clearances" & "stoppage clearances" in favor of keeping "total clearances" for this analysis 
+* Removed "total disposals" in favor of keeping its constituent elements - total kicks & handballs 
+* Removed "total marks" in favor of keeping total contested marks (a subset of total marks). I figured contested marking would be more closely associated with winning margin
+* Removed "turn-overs" in favor of keeping intercept possessions as these two measures are unsurprisingly highly correlated
+* Removed "Score Involvements" & "Goal Assists". These metrics are clearly a function of the score margin, & as such would be uninformative to any analysis
+
+```{r trim data}
+Matches_Numeric$FA_Diff <- NULL # FA a mirror of FF 
+Matches_Numeric$CCL_Diff <- NULL # already have clearance data
+Matches_Numeric$SCL_Diff <- NULL # already have clearance data
+Matches_Numeric$D_Diff <- NULL # already have kick & handball data
+Matches_Numeric$M_Diff <- NULL # selected contested marking instead
+Matches_Numeric$TO_Diff <- NULL # selected contested marking instead
+Matches_Numeric$SI_Diff <- NULL # in effect, a component of margin
+Matches_Numeric$GA_Diff <- NULL # in effect, a component of margin
+```
+
+## Visualise & Explore 
+
+### Correlation Matrices 
+
+The R package [Corrplot](https://cran.r-project.org/web/packages/corrplot/vignettes/corrplot-intro.html) is one of the easiest, & most engaging ways to summarize the relationships between variables via a matrix of correlations 
+
+Let's first create a matrix of correlations
+
+```{r cor matrix}
+# create matrix of correlations
+M <- cor(Matches_Numeric)
+# round data to 2 decimal places
+M <- round(M, 2)
+```
+
+& now generate two correlation plots for the data 
+
+The *first* plot uses coloured squares to summarize the correlations between 
+variables, ranging from  navy (perfect positive correlation) to maroon (perfect negative correlation). The strength of the correlation is also depicted by the size of the square
+
+The *second* plot summarises the same information, but provides the actual R values instead of colored squares 
+
+With corrplot you can pass arguments to augment aesthetics such as text-size. These text-editing steps are important to improve the aesthetic of the plot(s), particularly when there are many variables, and/or long variable names 
+
+```{r cor matrix 2}
+CM1 <- 
+corrplot(M,
+         method = "square", 
+         type = "upper",
+         tl.col= "black", 
+         tl.cex = 0.6, # Text label color and rotation
+         cl.cex = 0.6 # Correlation label color and rotation
+         )
+
+CM2 <- 
+corrplot(M,
+         method = "number", 
+         type = "upper",
+         tl.col="black", 
+         # tl.srt=45, 
+         tl.cex = 0.6, # Text label color and rotation
+         cl.cex = 0.6, # Correlation label color and rotation
+         number.cex = .6
+         )
+```
+
+In the above Figures, the **top horizontal row of the grid** is of most interest. This row depicts each *statistical-differentials* correlation with the *winning margin* 
+
+The immediate stand-out along this row is MG_Diff : **Metres Gained Differential**
+
+What this part of the grid shows is the larger the number of metres gained by the winning team, the greater the winning margin. This is far-and-away the largest correlation of all statistics, which we can characterize as positive & strong **(R = 0.82)**. 
+
+Metres Gained has become one of the most fashionable statistics in AFL. An in-depth examination of what it means & does not mean can be read [here](https://www.espn.com.au/afl/story/_/id/27199381/metres-gained-breaking-afl-most-misunderstood-statistic). 
+
+It should be acknowledged the gurus at Champion Data have delved into this statistic in much greater depth. My characterization here is simplistic. Much of the nuance which is absent here is covered in [this article](https://www.foxsports.com.au/afl/afl-2020-afl-finals-afl-grand-final-premiership-odds-predictor-champion-data-premiership-profile-2020/news-story/d1ce45ef3111bb82cad8d2157664b922?fbclid=IwAR3tKoj_bVRbI3khWzZAqJ3E79ugjNIpe5_kkl2Zcr4vLbWUihA2tnGOhNY) (for example, delineating *effective* metres gained)
+
+Comparatively, the next most important metrics were moderate in strength. These were effective disposal percentage differential of the winning side **(R = 0.47)**, and how many more kicks the winning side had **(R=0.42)**. 
+
+We can look more closely at these relationships via a series of interactive scatterplots:
+
+### Scatterplots
+
+#### winning-Margin x Metres-Gained-Differential
+
+```{r cor plot 1}
+# the greater the MG discrepancy 
+Matches %>% 
+  dplyr::select(Home_team, Away_team, WinningTeam, margin, MG_Diff) %>% 
+  tauchart() %>% 
+  tau_point("margin", "MG_Diff") %>% 
+  tau_tooltip() 
+```
+
+Examining the scatterplot of metres gained & winning margin, a few further insights can be gleaned:
+
+* there are very few games where the winning team loses the metres-gained differential **(only 25 out of 207)**
+* The highest winning margin for the year for a team conceding the metres-gained statistic was 24 points (Geelong defeating North Melbourne, with a very small -9 metres gained). In other words, if a team does not win the metres gained statistic, they are very unlikely to win by a large margin 
+* The largest amount of metres gained conceded for a winning team was *-461 metres*, with Fremantle defeating Sydney despite clearly losing the territory battle 
+* Fremantle were also involved in the only clear outlying game, when they lost to West Coast by 91 points, but conceded only 559 metres (an abnormally small difference when compared to other losses of that margin)
+
+#### Winning-Margin x Disposal-Efficiency-Differential
+
+```{r cor plot 2}
+Matches %>% 
+  dplyr::select(Home_team, Away_team, WinningTeam, margin, DE_Diff) %>% 
+  tauchart() %>% 
+  tau_point("margin", "DE_Diff") %>% 
+  tau_tooltip() 
+```
+
+One interesting observation between winning margin and disposal efficiency differential is the poorest differential observed for a winning team was -8.7%, recorded by Collingwood in a one point defeat of West-Coast
+
+#### winning-Margin x Number-of-Kicks-Differential
+
+```{r cor plot 3}
+# the greater the MG discrepancy 
+Matches %>% 
+  dplyr::select(Home_team, Away_team, WinningTeam, margin, K_Diff) %>% 
+  tauchart() %>% 
+  tau_point("margin", "K_Diff") %>% 
+  tau_tooltip() 
+```
+
+There are four potential outlier matches in this plot, with all involving Richmond. In three of these outliers, Richmond won comfortably, despite recording more than 40 less kicks than there opposition (wins against Sydney, St Kilda & Brisbane). 
+
+Inversely, Richmond were defeated by Collingwood in round 2 by 44 points, conceding the equal largest amount of kicks for any game (+107). Other matches with similar kick-differentials resulted in much greater winning margins 
