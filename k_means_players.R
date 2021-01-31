@@ -276,16 +276,69 @@ fviz_pca_var(pc,
              repel = TRUE     # Avoid text overlapping
 )
 
-
+# ----------------
+# PCA PLOT 
+# ----------------
 
 library(ggfortify)
 # https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_pca.html
+p1 <- 
 autoplot(pc, data = M1,
          loadings = TRUE, 
-         loadings.colour = 'blue',
-         loadings.label = TRUE, 
+         loadings.colour = '#36332e',
+         loadings.size = 0.5,
+         loadings.label.colour = '#36332e',
+         loadings.label = TRUE,
          loadings.label.size = 2,
-         loadings.label.repel=T)
+         loadings.label.repel = T
+         ) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(colour = "#E7B573") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        # plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+p1$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
+p1
 
 # https://www.datacamp.com/community/tutorials/pca-analysis-r
 # The relationship (correlation or anticorrelation, etc) between the initial 
@@ -388,19 +441,148 @@ k
 # palette(alpha(brewer.pal(9,'Set1'), 0.5))
 # plot(comp, col=k$clust, pch=16)
 
+# ----------------
+# K MEANS PLOT 1
+# ----------------
+
 # join cluster groupings back to data
 M1[,"Cluster"] <- k$clust
 # coerce to factor 
 M1$Cluster <- as.factor(M1$Cluster)
 # plot now with k means clusters
+
+colour_theme <- c("#E4796A", "#E7B573", "#f5a253", "#638DCB")
+d$layers[[2]]$aes_params$size <- 0.5
+
+# https://stackoverflow.com/questions/52648355/plotting-pca-biplot-with-autoplot-modify-arrow-thickness
+p <-
 autoplot(pc, 
          data = M1,
          colour = "Cluster", # need to join k$clust back to M1
          loadings = TRUE, 
-         loadings.colour = 'blue',
-         loadings.label = TRUE, 
+         loadings.colour = '#666257',
+         loadings.size = 0.5,
+         loadings.label.colour = '#666257',
+         loadings.label = TRUE,
          loadings.label.size = 2,
-         loadings.label.repel= T)
+         loadings.label.repel = T
+         ) +
+  scale_colour_manual(values = colour_theme) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(alpha = 0.01) +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        # plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+p$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
+p
+
+# ----------------
+# K MEANS PLOT 2
+# ----------------
+
+plot.data <- fviz_cluster(k, data = M1) # save to access $data
+data <- plot.data$data # this is all you need
+# calculate the convex hull using chull(), for each cluster
+hull_data <- data %>%
+  group_by(cluster) %>%
+  slice(chull(x, y))
+# plot: you can now customize this by using ggplot sintax
+ggplot(data, aes(x, y)) + 
+  geom_point(shape = 1) +
+  geom_polygon(data = hull_data, 
+               alpha = 0.5, 
+               aes(fill = cluster, linetype = cluster)) +
+  scale_colour_manual(values = colour_theme) +
+  scale_fill_manual(values = colour_theme) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(alpha = 0.01) +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        # plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+
+# ----------------
+# K MEANS PLOT 3
+# ----------------
 
 # join cluster groupings back to data
 M1[,"Position"] <- players$PositionType

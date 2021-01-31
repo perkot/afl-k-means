@@ -224,7 +224,6 @@ An obvious limitation of principal components is that they are less easy to inte
 
 By extracting variable loadings we generate a dataframe where each column represents a principal component, & each row represents the original variables correlation with each principal components [Datacamp](https://www.datacamp.com/community/tutorials/pca-analysis-r) has a nice tutorial explaining this further
 
-
 ```{r PCA (4), message=FALSE, warning=FALSE}
 M1.pca.df <- data.frame(M1.pca$rotation)
 ```
@@ -239,12 +238,63 @@ For the first four principal components, we can crudely summarize which variable
 To make this more tangible, we can visualize **all** of the variable loadings for the *first two* principal components. Each point on the plot reflects an individual player
 
 ```{r PCA (5), message=FALSE, warning=FALSE}
-autoplot(M1.pca, data = M1,
+p1 <- 
+autoplot(pc, data = M1.pca,
          loadings = TRUE, 
-         loadings.colour = 'blue',
-         loadings.label = TRUE, 
+         loadings.colour = '#36332e',
+         loadings.size = 0.5,
+         loadings.label.colour = '#36332e',
+         loadings.label = TRUE,
          loadings.label.size = 2,
-         loadings.label.repel=T)
+         loadings.label.repel = T
+         ) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(colour = "#E7B573") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        # legend.margin = margin(grid::unit(0,"cm")),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        # axis.text.x = element_blank(),
+        # axis.text.y = element_blank(),
+        # axis.ticks = element_blank(),
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        # plot.margin = margin(0.7,0.4,0.1,0.2,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+p1$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
+p1
 ```
 
 Principal component [1] is depicted along the x-axis, while principal component [2] is depicted along the y-axis. 
@@ -428,50 +478,9 @@ ggplot(M1_Data, aes(x, y)) +
 
 ## Model [2] - external indices 
 
-```{r scale, message=FALSE, warning=FALSE}
-set.seed(123)
-```
-
-```{r Model 2 (1), message=FALSE, warning=FALSE}
-Model_2 <- players_scaled %>%  
-  select(
-    # Player_Name,
-    # these ruck-related stats distinguish ruckmen entirely from the group
-      # 90.6% variance explained with just these stats
-    hitouts,
-    hitouts_to_advantage,
-    ruck_contests,
-    score_launches,
-    # this midfield related fields produces some separation of midfielders, 
-    # reducing overall variance
-    clearances,
-    contested_possessions,
-    uncontested_possessions,
-    centre_clearances,
-    stoppage_clearances,
-    # forwards
-    goals,
-    tackles_inside_fifty,
-    f50_ground_ball_gets,
-    # defenders
-    rebounds,
-      # one_percenters, keep this out, makes too similar to rucks
-      # intercepts, # really improves variance, but muddies model
-    contest_def_one_on_ones,
-    disposal_efficiency_percentage
-  )
-```
-
-```{r model 2 (2), message=FALSE, warning=FALSE}
-# fit model into 3 clusters 
-K_M2 <- kmeans(Model_2, 
-                centers = 4)
-K_M2 # 67.1%
-```
-
 ```{r model 2 (3), message=FALSE, warning=FALSE}
-p <- fviz_cluster(K_M2, 
-                  data = Model_2) # save to access $data
+p <- fviz_cluster(k, 
+                  data = M1) # save to access $data
 
 data <- p$data # this is all you need
 
@@ -480,7 +489,7 @@ hull_data <- data %>%
   group_by(cluster) %>%
   slice(chull(x, y))
 
-colour_theme <- c("#E4796A", "#E7B573", "#B0AA96", "#638DCB")
+colour_theme3 <- c("#E4796A", "#E7B573", "#B0AA96", "#638DCB")
 ```
 
 ```{r model 2 (4), message=FALSE, warning=FALSE}
@@ -490,8 +499,8 @@ ggplot(data, aes(x, y)) +
   geom_polygon(data = hull_data, 
                alpha = 0.5, 
                aes(fill = cluster, linetype = cluster)) +
-  scale_color_manual(values = colour_theme) +
-  scale_fill_manual(values = colour_theme) +
+  scale_color_manual(values = colour_theme3) +
+  scale_fill_manual(values = colour_theme3) +
   
   theme_grey(base_size = 10)+
   theme(legend.position = "right",
