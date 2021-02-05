@@ -270,6 +270,8 @@ plot(pc)
 plot(pc, type='l')
 fviz_eig(pc)
 
+pc.df <- as.data.frame(pc)
+
 fviz_pca_var(pc,
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
@@ -369,6 +371,65 @@ plot(comp, pch=16, col=rgb(0,0,0,0.5))
 wss <- (nrow(M1)-1) * sum(apply(M1, 2, var))
 for (i in 1:15) wss[i] <- sum(kmeans(M1,
                                      centers = i)$withinss)
+
+wss.df <- as.data.frame(wss)
+
+wss.df %>% 
+  ggplot(aes(y=wss, x=1:15)) +
+  geom_line(colour="#E4796A") +
+  geom_point(colour="#E4796A") +
+  scale_x_continuous(
+    breaks=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15),
+    labels=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)) +
+  scale_y_continuous(
+    breaks=c(0,2000,4000,6000,8000,1000),
+    labels=c(0,2000,4000,6000,8000,1000)) +
+  labs(x = "within cluster sum of squares",
+       y = "k",
+       title = "Elbow plot",
+       subtitle = "Depicting within cluster sum of squares against number of clusters") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.margin = margin(0.4,0.4,0.4,0.4,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
 
 plot(1:15, wss, type = "b", xlab = "Number of Clusters",
      ylab = "Within groups sum of squares")
@@ -537,6 +598,8 @@ ggplot(data, aes(x, y)) +
   scale_x_continuous(name = "Principal Component 1 (37.4%)") +
   scale_y_continuous(name = "Principal Component 2 (27.3%)") +
   geom_point(alpha = 0.01) +
+  labs(title = "Cluster Plot",
+       subtitle = "Depicting of k = 4 for first two principal components & variable loadings") +
   theme(legend.position = "right",
         legend.direction = "vertical",
         legend.title = element_text(colour = "#4E4F4E",
@@ -579,6 +642,14 @@ ggplot(data, aes(x, y)) +
                                     size = 6,
                                     face = "italic",
                                     margin = margin(-5,0,0,0)))
+
+
+# fviz_cluster(k, data = M1,
+#              palette = c("#2E9FDF", "#00AFBB", "#E7B800","#2E9FDF"), 
+#              geom = "point",
+#              ellipse.type = "convex", 
+#              ggtheme = theme_bw()
+# )
 
 # ----------------
 # K MEANS PLOT 3

@@ -41,13 +41,15 @@ library(cluster)
 
 In this markdown my goal is to provide a gentle introduction to exploratory cluster analysis, via principal components analysis & k-means
 
-My conduit for this question is a data-set I have curated myself that summarizes average game-day statistics of Australian Rules Football players (i.e. average kicks, handballs, tackles per game)
+I have curated my own data that summarizes *average game-day statistics* of Australian Rules Football players (i.e. average kicks, handballs, tackles per game)
 
 This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for detailed AFL statistics 
 
 R users are fortunate that a wealth of data from these websites is accessible via the **["FitzRoy"](https://cran.r-project.org/web/packages/fitzRoy/index.html)** package
 
 I have covered the process of extracting, cleaning & modeling this data in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**
+
+To begin, lets load in a .csv extract from this prior analysis 
 
 ```{r data load, results='hide', message=FALSE, warning=FALSE}
 # player data .csv 
@@ -62,7 +64,7 @@ kable(head(df.players)) %>% #head limits to just top rows
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
 ```
 
-Each  of the 950 rows reflects a unique player record
+Each of the 950 rows reflects a unique player record
 
 Columns one through four provide basic demographics (players name, team, games played)
 
@@ -72,7 +74,7 @@ Columns five through 48 are *averaged* statistics (i.e. kicks, handballs, spoils
 
 There are two important steps I have taken before commencing further analysis 
 
-Firstly, I have removed *any player* to take part in less than 22 games (equivalent to a single full-season). 
+Firstly, I have removed any player to take part in *less* than 22 games (equivalent to a single full-season). 
 
 My reasoning was that players with a small number of games may skew the data. For example, younger, inexperienced players with a small sample of games will likely have limited output, which for my purposes would be tantamount to statistical noise. Similarly, players with a small number of games due to injury may generate numbers otherwise not reflective of their output over a larger sample size
 
@@ -86,7 +88,7 @@ Secondly, I have *scaled* the data.
 
 Scaling is a recommended step for k-means, & a mandatory step for principal components analysis 
 
-If a dataset includes measures on different scales, or at a minimum has variables with different variances, failure to scale will bias the analysis in favor of variables with large differences 
+If a dataset includes measures on different scales, or at a minimum has variables with different variances, failure to scale will bias the analysis in favor of variables with *large* differences 
 
 The present data clearly has different scales. For example, *metres gained* is an averaged measure of distance, *disposal efficiency* is expressed as an averaged percentage, whilst *goals* is an averaged count of a specific statistic. 
 
@@ -107,15 +109,15 @@ df.players.scaled <- as.data.frame(scale(df.players[,5:48],
 
 ## Data model 
 
-As mentioned, this analysis is largely exploratory. Any combination of the 44 included match-day metrics could be included to perform a k-means analysis. 
+As mentioned, this analysis is largely exploratory. Any combination of the 44 match-day metrics could be included to perform a k-means analysis 
 
-Something crucial to be mindful of from the outset is that inclusion of *redundant* variables in the model (i.e. a metric that is ineffective at grouping the data) can have a *negative impact* on the eventual results by obscuring useful variance
+Something crucial for k-means is that inclusion of *redundant* variables in the model (i.e. a metric that is ineffective at grouping the data) can have a *negative impact* on the eventual results by obscuring useful variance
 
-As such, identifying a satisfactory combination of variables is critical to the eventual success of the cluster analysis. This process is an iterative & patient process, that is greatly aided by subject matter-expertise. Even then, some aspect of trial-&-error is required, adding & subtracting variables, & documenting the subsequent effect on the output 
+As such, identifying a satisfactory combination of variables is critical to the eventual success of the cluster analysis. This is an iterative & patient process, that is greatly aided by subject matter-expertise. Even then, some aspect of trial-&-error is required, adding & subtracting variables, & documenting the subsequent effect on the output 
 
 In the interest of brevity I won't labor on the various attempted models for this markdown (aside from some appendicised learnings). Suffice to say, the eventual model relied upon intuition around what match-day statistics would likely discriminate players, then trial & error using different combinations
 
-Some metrics were especially conspicuous (i.e. *hitouts* are something very few players engage in), whilst others were more ambiguous (*uncontested possessions* would be high for midfielders, but may not discriminate midfielders from defenders)
+Some metrics were especially conspicuous (i.e. *hitouts* as something likely to distinguish players), whilst others were more ambiguous (*uncontested possessions* seemed less clearly in its discriminatory powers)
 
 The 15 included variables can be observed in the subsetted dataframe below:
 
@@ -144,13 +146,13 @@ M1 <- df.players.scaled %>%
     )
 ```
 
-With our data finalized we can jump into the principal components analysis 
+With our data finalized we can jump into the first-step for this cluster analysis: **principal components analysis**
 
 ## Principal Components Analysis 
 
 Principal Component Analysis (PCA) is a common technique applied *prior* to cluster analysis. It is a method for **dimensionality-reduction** / **compression** of a dataset. It transforms a "larger set" of variables into a smaller set, that retains *most* of the variance of the larger set in a smaller number of components
 
-Although some information will be lost in compression, the idea is that a small degradation in accuracy is traded-off for an increase in model parsimony (kind of a stastical equivalent to the trade-off between a compressed MP3 compared to an uncompressed WAV file)
+Although some information will be lost in compression, the idea is that a small degradation in accuracy is traded-off for an increase in parsimony (kind of the statistical equivalent of a compressed MP3 compared to an uncompressed WAV file)
 
 Thus, *Principal components* are new variables, derived mathematically from a linear combination of the initial variables. 
 
@@ -162,13 +164,17 @@ As mentioned, standardization is critical for PCA. The reason being that it is q
 
 PCA can be [beneficial for noise reduction](https://stats.stackexchange.com/questions/183236/what-is-the-relation-between-k-means-clustering-and-pca#:~:text=clustering%20pca%20k%2Dmeans,in%20practice%20(noise%20reduction).), although this benefit is tenuous & dependent on the data 
 
-PCA does have one very obvious benefit in that it allows for simpler visualization of cluster analysis results. It is nigh on impossible to provide a simple visualization of higher-dimensional data. As such, dimensional reduction allows for more information from the analysis to be visualized in a two-dimensional format
+PCA does have one very obvious benefit to cluster analysis - it allows for simpler visualization of results. It is nigh on impossible to provide a simple summary visualization of higher-dimensional data. As such, dimensional reduction allows for more information from the analysis to be visualized in a two-dimensional format
 
 ### Covariance Matrix Computation
 
 Key to the concept of dimensional reduction is the covariance matrix, which summarizes the relationship between variables included in the PCA. It is likely that some variables will share covariance with one another, in such a way that they contain redundant information
 
-Note here that covariance is distinct from correlation - two related, but different concepts. Correlation values are *standardized* (range between -1 and 1) & measure *relationship strength* & *direction*. Covariance values are *non-standardised*, & measure *only direction*. [Click here for a more in depth examination of this topic](https://towardsdatascience.com/let-us-understand-the-correlation-matrix-and-covariance-matrix-d42e6b643c22#:~:text=between%20two%20variables.-,%E2%80%9CCovariance%E2%80%9D%20indicates%20the%20direction%20of%20the%20linear%20relationship%20between%20variables,a%20function%20of%20the%20covariance.) The role of covariance, a non-standardized metric, in derivation of principal components is why scaling is essential prior to analysis  
+Note here that covariance is distinct from correlation - two related, but different metrics
+
+Correlation values are *standardized* (range between -1 and 1) & measure *relationship strength* & *direction*. 
+
+Covariance values are *non-standardised*, & measure *only direction*. [Click here for a more in depth examination of this topic](https://towardsdatascience.com/let-us-understand-the-correlation-matrix-and-covariance-matrix-d42e6b643c22#:~:text=between%20two%20variables.-,%E2%80%9CCovariance%E2%80%9D%20indicates%20the%20direction%20of%20the%20linear%20relationship%20between%20variables,a%20function%20of%20the%20covariance.) The role of covariance, a non-standardized metric, in derivation of principal components is why scaling is essential prior to analysis  
 
 ### Eigenvectors & Eigenvalues
 
@@ -185,7 +191,7 @@ The sum of *variance* & *error* is constant, so the statistical sorcery of PCA i
 
 The second principal component is then calculated in precisely the same way, with the condition that it is *orthogonal* to the first principal component. In other words, in this rotated factor space, it is at 90 degrees, & completely uncorrelated with the first principal component. This process is completed for as many principal components as there are variables in the data-set
 
-[This link](https://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues) provides a more in depth discussion of principal components, alongside some amazing two-dimensional animations illustrating the concept
+[This link](https://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues) provides a more in depth guide to principal components, alongside some amazing two-dimensional animations illustrating the concept of maximizing variance & minimizing error
 
 The mathematics of PCA is quite complex, but fortunately, the programming is very straight-forward & can be completed in a line-of-code  
 
@@ -197,7 +203,7 @@ M1.pca <- prcomp(M1)
 
 For illustrative purposes, I have calculated the eigenvalue for the first principal component (*square of the standard deviation of the principal component*)
 
-By dividing the first eigenvalue by the sum of all eigenvalues, we can determine percentage of variance explained - **37.43%**
+By dividing the first eigenvalue by the sum of all eigenvalues, we can determine the percentage of variance explained - **37.43%**
 
 ```{r PCA (2), message=FALSE, warning=FALSE}
 # Calculate Eigenvalues
@@ -206,19 +212,23 @@ M1.ev <- M1.pca$sdev^2
 (M1.ev[1] / sum(M1.ev))*100
 ```
 
-Fortunately, passing our PCA to the function *"summary"* will auto-calculate the standard deviation, total variance, & cumulative variance explained for each principal component. This is an especially useful summary, as it shows 85% of variance in this dataset can be explained by the first three principal components - not bad! 
+Fortunately, passing our PCA to the function *"summary"* will auto-calculate the standard deviation, total variance, & cumulative variance explained for each principal component
+
+This is an especially useful, it shows 85% of variance in this dataset can be explained by the first three principal components - not bad! 
 
 ```{r PCA (2), message=FALSE, warning=FALSE}
 summary(M1.pca)
 ```
 
-The variance explained per principal component can be visualized with a **scree plot** - a simple bar-chart. Scree plots provide a valuable visual representation of how many principal components are required before variance explained drops off. Corroborating the raw numbers, we can clearly see that **three** principal components in this data-set is the magic number 
+The variance explained per principal component can be visualized with a **scree plot** - a simple bar-chart representing how many principal components are required before variance explained drops off 
+
+Corroborating the raw numbers, we can clearly see that **three** principal components in this data-set is the magic number 
 
 ```{r PCA (3), message=FALSE, warning=FALSE}
 fviz_eig(M1.pca)
 ```
 
-Here we reach the punchline of a PCA, & the purpose of dimension-reduction. In this analysis, three principal components can explain 85% of variance from our original model of 15 match-day statistics
+Here we reach the punchline of PCA, & the value of dimension-reduction. With just three principal components, 85% of variance from our original model of 15 match-day statistics can be explained
 
 An obvious limitation of principal components is that they are less easy to interpret than raw variables. Fortunately, we can explore the variable **loadings** of the principal components. [Loadings are the covariances/correlations between the original variables and the unit-scaled components](https://stats.stackexchange.com/questions/143905/loadings-vs-eigenvectors-in-pca-when-to-use-one-or-another)
 
@@ -326,66 +336,304 @@ M1.pca.pc3 <- data.frame(M1.pca$x[,1:3])
 
 **k-means clustering** is probably the most common algorithm for partitioning 
 
-k-means 'groups' observations (i.e. players) into clusters formed by observations that demonstrate high *intra-class similarity*. This is measured by the clusters *'centroid'* - the mean value of points assigned to the cluster
+k-means 'groups' observations (i.e. players) to their nearest mean. In this case  *nearest* denotes the mean with the least squared Euclidean distance. Means in k-means analysis are calculated as **centroids** - the arithmetic average position of all of the points in the cluster. Clusters are defined such that the total **within-cluster sum of square (WSS)** is minimized
 
-In k-means clustering, 'k' represents the number of clusters the data will be separated into. k is *pre-specified* by the analyst, & can be determined in two ways
+'k' represents the number of clusters the data will be separated into. Determining k is an important *a priori* decision for the analysis
+
+k-means is a fast & powerful analysis, but comes with caveats 
+
+[1] k-means will partition data, even if no *real* clusters exist. Real is a loose term here, but the point is that even if a data-set amounts to random noise, the k-means algorithm *will not fail*. Clusters will be generated even if they are meaningless. Fortunately there are ways to evaluate *cluster quality*
+
+[2] k-means generates ~ spherical clusters. As such, visual inspection of k-means results is important. As emphasized by this [awesome analysis by David Robinson](http://varianceexplained.org/r/kmeans-free-lunch/), k-means can successfully reduce WSS, but miss obvious clusters in the dataset should they not be spherical. As such it is horses for courses - finding the right clustering algorithm that is able to service the assumptions of the dataset
+
+For more information on k-means/principal components analysis, [this towards data science](https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff) article is an easily digestible summary 
+
+As mentioned, the number for *k* is a decision for the analyst. Generally, the value for k is best determined by corroborating 
+
+(a) **knowledge around the data** - ground truths or known groupings & 
+(b) **optimization methods** -  to determine which value of k best minimizes WSS. 
+
+Below I have applied two of the most popular optimization methods for determining k, along with a discussion of our known grouping variable - player position
+
+### Elbow Method
+
+In a k-means analysis, increasing the value of k will reduce WSS (for the most part). You could imagine drawing a line-chart with the *n* of *k* along the x-axis, & total WSS along the y-axis. As k increases, the line depicting WSS reduces toward zero
+
+The elbow method does just this. It is a visual heuristic, to locate the point along this line at which adding further k has *minimal impact* upon the WSS. Literally, the *elbow* of the line
+
+This method relies upon running a k-means analysis, for different values of k, & observing the WSS 
+
+```{r k means (1), message=FALSE, warning=FALSE}
+wss <- (nrow(M1)-1) * sum(apply(M1, 2, var)) # calculate wss
+for (i in 1:15) wss[i] <- sum(kmeans(M1, centers = i)$withinss) # for k values 1:15
+wss.df <- as.data.frame(wss) # convert to df
+```
+
+```{r k means (2), message=FALSE, warning=FALSE}
+wss.df %>% 
+  ggplot(aes(y=wss, x=1:15)) +
+  geom_line(colour="#E4796A") +
+  geom_point(colour="#E4796A") +
+  scale_x_continuous(
+    breaks=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15),
+    labels=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)) +
+  scale_y_continuous(
+    breaks=c(0,2000,4000,6000,8000,1000),
+    labels=c(0,2000,4000,6000,8000,1000)) +
+  labs(x = "k",
+       y = "within cluster sum of squares",
+       title = "Elbow plot",
+       subtitle = "Depicting within cluster sum of squares against number of clusters") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.margin = margin(0.4,0.4,0.4,0.4,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+```
+
+Inspecting the plot above, the point of the elbow should hopefully be obvious. We can clearly see an *elbow* at k = 4, making four clusters the *suggested* number, according to this method
+
+### Silhouette Method 
+
+Silhouette's are a nice compliment to elbow plots. Rather than measuring WSS, they are an indicator as to the *quality* of clustering. The optimal number of clusters is the one that maximize the average silhouette over a range of possible values for k
+
+The silhouette ranges from −1 to +1, with a high value indicates that the object is well matched to its own cluster and poorly matched to neighboring clusters
+
+```{r k means (2), message=FALSE, warning=FALSE}
+# function to compute average silhouette for k clusters
+M1.sil <- function(k) 
+{
+  km.res <- kmeans(M1, 
+                   centers = k, 
+                   nstart = 25)
+  ss <- silhouette(km.res$cluster, 
+                   dist(M1))
+  mean(ss[, 3])
+}
+```
+
+```{r k means (3), message=FALSE, warning=FALSE}
+# Compute and plot wss for k = 2 to k = 15
+k.values <- 2:15
+# extract avg silhouette for 2-15 clusters
+M1_sil_values <- map_dbl(k.values, M1.sil)
+sil.df <- as.data.frame(M1_sil_values)
+```
+
+```{r k means (4), message=FALSE, warning=FALSE}
+sil.df %>% 
+  ggplot(aes(y=M1_sil_values, x=2:15)) +
+  geom_line(colour="#E4796A") +
+  geom_point(colour="#E4796A") +
+  scale_x_continuous(
+    breaks=c(2,3,4,5,6,7,8,9,10,11,12,13,14,15),
+    labels=c(2,3,4,5,6,7,8,9,10,11,12,13,14,15)) +
+  scale_y_continuous(
+    breaks=c(0.1,0.2,0.3,0.4,0.5),
+    labels=c(0.1,0.2,0.3,0.4,0.5)) +
+  labs(x = "k",
+       y = "average silhouettes",
+       title = "Silhouette plot",
+       subtitle = "Depicting average silhouettes against number of clusters") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"), # move a little away from plot, to the right
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9,
+                                    face = "bold",
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.margin = margin(0.4,0.4,0.4,0.4,"cm"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+```
+
+The plot above tells us two useful things
+
+Firstly, that k = 4 is very clearly the optimal division of clusters for this dataset. It's nice that the Silhouette & Elbow plots both yield the same suggested k, adding validity to this cluster-number 
+
+Secondly, it also quantifies with numerical indicator the quality of the clustering. The average silhouette for k = 4 was **0,46**
+
+An interpretation [offered here of silhouette width averages](https://web.archive.org/web/20111002220803/http://www.unesco.org:80/webworld/idams/advguide/Chapt7_1_1.htm) suggests that a silhouette average score between 0.26 & 0.50 is indicative of a *weak* & *potentially artificial* cluster structure
+
+This is on the surface disappointing, but again, needs to be interpreted within the context of what we know about this data. We can concede from this that at a minimum, the clustering results are not strong. But this isn't wholly surprising when considering the highly dynamic nature of AFL football, & immense diversity of athletes & outputs of players.  
+
+However, to outright dismiss them as *artificial* would be premature. This is where subject matter expertise becomes important to the analysis, as we do know that there exist real-life groupings for players
+
+# https://stats.stackexchange.com/questions/10540/how-to-interpret-mean-of-silhouette-plot
+
+### Ground Truth 
+
+The ace-in-the-hole for this dataset is that for AFL players, we have a pre-existing grouping variable - **their position on the ground**. Whats more interesting is in the broadest terms, player positions can be divided into four - midfielders, ruckmen, defenders & forwards
+
+Although it is entirely possible that game day statistics could produce different groupings to ground position, it is interesting our optimization methods are in concert with this ground truth
+
+Clearly all indicators suggest we proceed with a k of 4. As part of this analysis, we can compare the results of the k-means cluster to the already established ground positions of players
+
+### k-means analysis
+
+With a **k value** established, running k-means analysis is straight forward. We will specify two additional arguments 
+
+**nstart = 25** : The number of times the initial starting points are re-sampled.
+It looks for the initial starting points that have the lowest WSS
+
+**iter.max = 1000** : the number of times the algorithm will repeat the cluster assignment and moving of centroids
+
+```{r k means (5), message=FALSE, warning=FALSE}
+# Elbow & Silhouette plot indicate optimal k = 4
+# Scree plot demonstrated 85% of variance could be explained by first 3 components
+k <- kmeans(M1.pca.pc3, 4, 
+            nstart = 25, 
+            iter.max = 1000)
+k
+```
+
+Running the analysis produces a number of outputs 
+
+1) Cluster means for each cluster (k), & each principal component included in the analysis 
+
+2) Cluster assignment (either 1, 2, 3 or 4) for each included player
+
+3) Statistics related to variance explained. **Total sum of squares** is the sum of squared distances of each observation to the overall sample mean. In addition, sample means are calculated per cluster. The sum of squared distances of these cluster means (in this case 4) to the overall mean is **between group sum of squares** 
+
+The **78.5%** represents the total percentage of variance explained by the clusters. Generally a larger percentage is favorable, but it is also directly related to how many clusters are included. If there were as many clusters as there were observations, then this value would be 100%, but this would be completely self-defeating to the purpose of clustering
+
+Let's now visualize how the clustering looks
+
+```{r k means plot (1), message=FALSE, warning=FALSE}
+plot.data <- fviz_cluster(k, data = M1) # save to access $data
+data <- plot.data$data # this is all you need
+hull_data <- data %>%
+  group_by(cluster) %>%
+  slice(chull(x, y))
+ggplot(data, aes(x, y)) + 
+  geom_point(shape = 1) +
+  geom_polygon(data = hull_data, 
+               alpha = 0.5, 
+               aes(fill = cluster, linetype = cluster)) +
+  scale_colour_manual(values = colour_theme) +
+  scale_fill_manual(values = colour_theme) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(alpha = 0.01) +
+    labs(title = "Cluster Plot",
+       subtitle = "Depicting of k = 4 for first two principal components") +
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.title = element_text(colour = "#4E4F4E",
+                                    size = 8,
+                                    face = "bold"),
+        legend.text = element_text(colour = "#4E4F4E",
+                                   size = 8),
+        legend.key.height = grid::unit(0.6,"cm"),
+        legend.key.width = grid::unit(0.6,"cm"),
+        legend.margin = margin(0,0,0,0.2,"cm"),  
+        axis.text.x = element_text(size = 8,
+                                   colour = "#4E4F4E"),
+        axis.title.x = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.title.y = element_text(colour = "#4E4F4E",
+                                    size = 9),
+        axis.text.y = element_text(size = 8,
+                                   vjust = 0.2,
+                                   colour = "#4E4F4E"),
+        axis.ticks = element_line(size = 0.2, 
+                                  colour = "#878683"),
+        panel.border = element_blank(),
+        strip.text.x = element_text(size = 8, colour = "#6b6e6b"),
+        strip.background = element_rect(fill="#fffdf2"),
+        plot.title = element_text(colour = "#4E4F4E",
+                                  hjust = 0,
+                                  size = 10,
+                                  face = "bold"),
+        plot.subtitle = element_text(colour = "#6b6e6b",
+                                     hjust = 0,
+                                     size = 9),
+        plot.caption = element_text(colour = "#4E4F4E",
+                                    hjust = 0,
+                                    vjust = 1,
+                                    size = 6,
+                                    face = "italic",
+                                    margin = margin(-5,0,0,0)))
+```
+
+
+
+
+& can be determined in two ways
 
 **Internal indices** - to measure the goodness of a clustering structure without external information (Tseng et al., 2005). In this case, relying upon statistical outputs such as elbow plots / silhouette plots
 
 **External indices** - to evaluate the results of a clustering algorithm based 
 on a known cluster structure of a data set. In other words, already known, real-world groupings
-
-For more information on k-means/principal components analysis, [this towards data science](https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff) article is an easily digestible summary 
-
-Although the PCA gabe us some clues, to be thorough, lets run through both processes to determine the k value for this analysis
-
-### Internal Indices 
-
-#### Elbow Method
-
-The basic idea behind cluster partitioning methods, such as k-means clustering, is to define clusters such that the total intra-cluster variation (known as total within-cluster variation or total within-cluster sum of square) is minimized
-
-The total within-cluster sum of square (wss) measures the compactness of the clustering and the desire is for this to be as small as possible 
-
-Thus, we can use the following algorithm to define the optimal clusters:
-
-Compute clustering algorithm (e.g., k-means clustering) for different values of k
-For instance, by varying k from 1 to 10 clusters
-
-For each k, calculate the total within-cluster sum of square (wss)
-
-Plot the curve of wss according to the number of clusters k.
-
-The location of a bend (knee) in the plot is generally considered as an indicator of the appropriate number of clusters.
-
-```{r k means (1), message=FALSE, warning=FALSE}
-wss <- (nrow(M1)-1) * sum(apply(M1, 2, var))
-for (i in 1:15) wss[i] <- sum(kmeans(M1,
-                                     centers = i)$withinss)
-
-plot(1:15, wss, type = "b", xlab = "Number of Clusters",
-     ylab = "Within groups sum of squares")
-```
-
-#### Silhouette Method 
-
-### External Indices 
-
-
-princomp
-Spectral decomposition which examines the covariances / correlations between variables
-
-prcomp
-Singular value decomposition which examines the covariances / correlations between individuals
-
-# http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/
-
-
-
-
-
-
-
 
 
 
