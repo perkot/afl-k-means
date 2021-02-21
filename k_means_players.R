@@ -2,6 +2,9 @@
 # REFERENCES
 # ----------------
 
+# interpret silhouette width
+# # https://stats.stackexchange.com/questions/10540/how-to-interpret-mean-of-silhouette-plot
+
 # https://towardsdatascience.com/let-us-understand-the-correlation-matrix-and-covariance-matrix-d42e6b643c22#:~:text=between%20two%20variables.-,%E2%80%9CCovariance%E2%80%9D%20indicates%20the%20direction%20of%20the%20linear%20relationship%20between%20variables,a%20function%20of%20the%20covariance.
 
 # david robinson's cautionary analysis 
@@ -9,6 +12,9 @@
 # https://stats.stackexchange.com/questions/326685/is-it-true-that-k-means-has-an-assumption-each-cluster-has-a-roughly-equal-numb
 # https://stats.stackexchange.com/questions/133656/how-to-understand-the-drawbacks-of-k-means
 # https://stats.stackexchange.com/questions/11691/how-to-tell-if-data-is-clustered-enough-for-clustering-algorithms-to-produce-m
+
+# k means non-normal distribution
+# https://stats.stackexchange.com/questions/325676/should-k-means-only-be-applied-if-the-variables-are-normally-distributed
 
 # k means general interpretation 
 # https://stats.stackexchange.com/questions/149254/cluster-analysis-effectiveness-of-k-means-results-and-alternative-methods
@@ -1348,3 +1354,22 @@ fviz_pca_ind(wdbc.pr, geom.ind = "point", pointshape = 21,
              legend.title = "Diagnosis") +
   ggtitle("2D PCA-plot from 30 feature dataset") +
   theme(plot.title = element_text(hjust = 0.5))
+
+
+
+# join players back
+M1[,"Player"] <- df.players$Player_Name
+# as character
+M1$Cluster <- as.character(M1$Cluster)
+# Change cluster names to ~ position
+M1$Cluster[M1$Cluster == "1"] <- "Forward"
+M1$Cluster[M1$Cluster == "2"] <- "Defender"
+M1$Cluster[M1$Cluster == "3"] <- "Midfield"
+M1$Cluster[M1$Cluster == "4"] <- "Ruck"
+# look for mismatches 
+M1$Match <- M1$Cluster == M1$Position
+
+
+
+
+

@@ -229,4 +229,27 @@ fviz_cluster(list(data = M1, cluster = sub_grp))
 
 
 
+p4 <- M1 %>% 
+  ggplot(aes(label = Player))
+
+p4 <- p4 +
+autoplot(M1.pca, 
+         data = M1,
+         colour = "Cluster"
+) +
+  scale_colour_manual(values = colour_theme) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(alpha = 0.01) +
+  geom_text(data = player_labels,
+            size = 2,
+            colour = "#730202") +
+  labs(title = "Cluster Plot",
+       subtitle = "Depicting k = 4 for first two principal components + variable loadings") +
+  theme_minimal() +
+  plot_theme
+
+
+
+
 
