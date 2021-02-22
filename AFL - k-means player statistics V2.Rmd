@@ -88,15 +88,13 @@ colour_theme <- c("#E4796A", "#E7B573", "#f5a253", "#638DCB")
 
 ## Introduction
 
-In this markdown I will provide a gentle introduction to exploratory cluster analysis, via principal components analysis & k-means. The goal is to see if AFL players can be grouped, or *clustered* based upon their statistical output. These results will then be evaluated against a **ground truth** - a players *field position*, which is a known, real-world way of grouping players
+This markdown provides a gentle introduction to exploratory cluster analysis, via principal components analysis & k-means. The goal is to see if Australian Rules Football players can be *clustered* based upon their statistical output. The results of the cluster analysis will then be evaluated against a number of estimates of a [**ground truth**](https://datascience.stackexchange.com/questions/17839/what-is-ground-truth) - a players *field position*, a known way of grouping players
 
-I have curated my own data that summarizes *average game-day statistics* of Australian Rules Football players (i.e. average kicks, handballs, tackles per game)
+The analysis is based upon a dataset I curated in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**, & summarizes *average game-day statistics* such as average number of kicks, handballs & goals per game
 
 This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for detailed AFL statistics 
 
 R users are fortunate that a wealth of data from these websites is accessible via the **["FitzRoy"](https://cran.r-project.org/web/packages/fitzRoy/index.html)** package
-
-I have covered the process of extracting, cleaning & modeling this data in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**
 
 To begin, lets load in a .csv extract from this prior analysis 
 
@@ -137,7 +135,7 @@ Secondly, I have *scaled* the data.
 
 Scaling is a recommended step for k-means, & a mandatory step for principal components analysis 
 
-If a dataset includes measures on different scales, or at a minimum has variables with different variances, failure to scale will bias the analysis in favor of variables with *large* differences 
+If a dataset includes measures on different scales, or at a minimum has variables with different variances, it risks the analysis being in biased in favor of variables with *large* differences 
 
 The present data clearly has different scales. For example, *metres gained* is an averaged measure of distance, *disposal efficiency* is expressed as an averaged percentage, whilst *goals* is an averaged count of a specific statistic 
 
@@ -291,7 +289,6 @@ M1.pca.df <- data.frame(M1.pca$rotation)
 kable(M1.pca.df) %>% 
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
 ```
-
 
 For the first three principal components, we can crudely summarize which variables demonstrated the strongest association to each principal component 
 
@@ -459,6 +456,12 @@ It would be premature to outright dismiss the results as *artificial*. This is w
 
 The already discussed, ace-in-the-hole for this dataset is that for AFL players, we have a pre-existing grouping variable - **their position on the ground**. There are four broad groupings of AFL positions (midfielders, rucks, defenders & forwards), made all the more interesting by the results of the Elbow & Silhouette Plots corroborating this number
 
+- Add section here on fact ground truth not perfect
+
+- two estimations
+- (1) player positions from stats insider 
+- (2) my own method of collating the position for which each player most frequently *starts* on the ground (excludes interchange)
+
 Clearly all indicators suggest we proceed with a k of 4. As part of this analysis, we can compare the results of the k-means cluster to the already established ground positions of players
 
 ### k-means analysis
@@ -517,9 +520,9 @@ ggplot(data, aes(x, y)) +
 
 Similarly to the PCA plot, each player is depicted against the first two principal components in this analysis (mindful three were used to generate the results). The *clusters* to emanate from the k-means analysis are shown by the polygonal shapes overlaying the data-points. This shows some *clumping* of the data, but not clear separation. There is more a gradient-like effect of players overlapping, but pushing in different directions. Were this to be a spectacularly successful cluster analysis, groups would not overlap, occupying their own space in the visualization. As identified earlier, this is probably too taller ask for inherently heterogeneous data such as as AFL player statistics 
 
-### Plot 2 : Clusters overlayed with PCA variable loadings
+### Plot 2A : Clusters overlayed with PCA variable loadings
 
-```{r k means plot (2), message=FALSE, warning=FALSE}
+```{r k means plot (2A), message=FALSE, warning=FALSE}
 # join cluster groupings back to data
 M1[,"Cluster"] <- k$clust
 # coerce to factor 
@@ -549,9 +552,87 @@ p$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p
 ```
 
-Above is a somewhat experimental plot, combining components of the PCA & k-means analysis. The colour of each data-point represents the k-means cluster it has been assigned to, whilst the gray lines represent the variable loadings for the first two principal components. This shows fairly clearly that each of the four clusters align pretty closely with metrics one would expect to be associated with a players field position 
+The above plot combines components of the PCA & k-means analysis. The colour of each data-point represents the k-means cluster it has been assigned to, whilst the gray lines represent the variable loadings for the first two principal components. This shows fairly clearly that each of the four clusters align pretty closely with metrics one would expect to be associated with a players field position 
+
+### Plot 2B : Clusters overlayed with PCA variable loadings & player labels
+
+With 500 + data-points the plot is too dense to include every single player label. As such I have leveraged data from [stats insider](https://www.statsinsider.com.au/afl/player-ratings) that includes player ratings, to limit player labels to only the top handful of players in each position 
+
+The player positions listed on stats insider are more granular
+
+* Midfielder
+* Ruck
+* Key Forward
+* General Forward
+* Key Defender
+* General Defender
+
+As such, 30 player labels are included 
+
+```{r k means evaluate3, message=FALSE, warning=FALSE}
+# retrieve all player names for labelling 
+M1.pca.pc3[,"Player"] <- df.players$Player_Name
+# retrieve only top players names for labelling 
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Harris Andrews"] <- "Harris Andrews"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Steven May"] <- "Steven May"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Darcy Moore"] <- "Darcy Moore"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Jacob Weitering"] <- "Jacob Weitering"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Jeremy McGovern"] <- "Jeremy McGovern"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Jake Lloyd"] <- "Jake Lloyd"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Caleb Daniel"] <- "Caleb Daniel"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Rory Laird"] <- "Rory Laird"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Daniel Rich"] <- "Daniel Rich"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Bachar Houli"] <- "Bachar Houli"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Toby Greene"] <- "Toby Greene"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Chad Wingard"] <- "Chad Wingard"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Shai Bolton"] <- "Shai Bolton"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Isaac Heeney"] <- "Isaac Heeney"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Liam Ryan"] <- "Liam Ryan"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Tom Hawkins"] <- "Tom Hawkins"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==   "Lance Franklin"] <-  "Lance Franklin"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Josh J. Kennedy"] <- "Josh J. Kennedy"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Jack Gunston"] <- "Jack Gunston"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Lachie Neale"] <- "Lachie Neale"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Dustin Martin"] <- "Dustin Martin"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Travis Boak"] <- "Travis Boak"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Jack Steele"] <- "Jack Steele"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Nat Fyfe"] <- "Nat Fyfe"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Max Gawn"] <- "Max Gawn"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Nic Naitanui"] <- "Nic Naitanui"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Todd Goldstein"] <- "Todd Goldstein"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==  "Rowan Marshall"] <- "Rowan Marshall"
+M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==   "Jarrod Witts"] <-  "Jarrod Witts"
+```
+
+```{r k means plot (2B), message=FALSE, warning=FALSE}
+p5 <-
+autoplot(M1.pca, 
+         data = M1,
+         colour = "Cluster",
+         ) +
+  scale_colour_manual(values = colour_theme) +
+  scale_x_continuous(name = "Principal Component 1 (37.4%)") +
+  scale_y_continuous(name = "Principal Component 2 (27.3%)") +
+  geom_point(alpha = 0.01) +
+    geom_text(vjust=-1, 
+              label=M1.pca.pc3$Player_Top,
+              size = 2,
+              colour = "#4E4F4E") +
+      labs(title = "Cluster Plot",
+      subtitle = "Depicting k = 4 for first two principal components + variable loadings") +
+  theme_minimal() +
+  plot_theme
+p5$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
+p5
+```
+
+Casting ones attention on the player labels, you can see quite clearly that greater cluster separation occurs when limiting to star players. Presumably they are exemplars of their field-position, & thus provide a clearer statistical profile
 
 ### Plot 3 : Player position overlayed with PCA variable loadings
+
+#### Starting Position 
+
+In the below plot we are doing away with the k-means cluster results. In their place are groupings based upon *field position*, as defined by a players most commonly named starting position on the team sheet. 
 
 ```{r k means plot (3), message=FALSE, warning=FALSE}
 # join cluster groupings back to data
@@ -585,7 +666,36 @@ p2
 
 This plot replicates plot 2, but replaces the k-means cluster groupings with the players actual position (aka our ground truth). It shows clearly the cluster results are in close accord with players ground position
 
+- join player name back to our model data-set
+
+- change cluster names from numeric to equivalent position 
+
+- calculate column for mismatches 
+
+```{r k means evaluate, message=FALSE, warning=FALSE}
+# join players back
+M1[,"Player"] <- df.players$Player_Name
+# as character
+M1$Cluster <- as.character(M1$Cluster)
+# Change cluster names to ~ position
+M1$Cluster[M1$Cluster == "1"] <- "Defender"
+M1$Cluster[M1$Cluster == "2"] <- "Forward"
+M1$Cluster[M1$Cluster == "3"] <- "Midfield"
+M1$Cluster[M1$Cluster == "4"] <- "Ruck"
+# look for mismatches 
+M1$PSP.Match <- M1$Cluster == M1$Position
+```
+
+```{r k means evaluate2, message=FALSE, warning=FALSE}
+M1 %>%
+  group_by(PSP.Match) %>%
+  tally() %>% 
+  mutate(percent = n / sum(n)*100)
+```
+
 ### Plot 4 : Player position (stats insider) overlayed with PCA variable loadings
+
+- Extract data
 
 ```{r k means plot (4) pre-work, message=FALSE, warning=FALSE}
 positions.SI <- read.csv("afl_stats_position_stats_insider.csv")
@@ -595,30 +705,32 @@ unique.positions.SI
 ```
 
 ```{r k means plot (4) pre-work2, message=FALSE, warning=FALSE}
+# Re-group to 4 position types 
 positions.SI$PositionSI[positions.SI$Position ==   "Gen Def"] <-  "Defender"
 positions.SI$PositionSI[positions.SI$Position ==   "Key Def"] <-  "Defender"
 positions.SI$PositionSI[positions.SI$Position ==   "Gen Fwd"] <-  "Forward"
 positions.SI$PositionSI[positions.SI$Position ==   "Key Fwd"] <-  "Forward"
 positions.SI$PositionSI[positions.SI$Position ==   "Mid"] <-  "Midfield"
 positions.SI$PositionSI[positions.SI$Position ==   "Ruck"] <-  "Ruck"
-
+# limit df to two columns of interest
 positions.SI <- positions.SI %>% 
   select(Player, PositionSI)
-
+# join stats insider positions to df 
 M1 <- left_join(M1, positions.SI, by = "Player")
-
+# a couple of discrepant players - fill in with known position type 
 M1$PositionSI <- ifelse(is.na(M1$PositionSI), M1$Position, M1$PositionSI)
-
-# Change cluster names to ~ position
+# Change these so their cluster name is not numeric 
 M1$PositionSI[M1$PositionSI == "1"] <- "Defender"
 M1$PositionSI[M1$PositionSI == "2"] <- "Forward"
 M1$PositionSI[M1$PositionSI == "3"] <- "Midfield"
 M1$PositionSI[M1$PositionSI == "4"] <- "Ruck"
 ```
 
+- plot this 
+
+- Ben McEvoy a defender?
+
 ```{r k means plot (4), message=FALSE, warning=FALSE}
-# coerce to factor 
-# M1$PositionSI <- as.factor(M1$PositionSI)
 # plot now with k means clusters
 p4 <-
 autoplot(M1.pca, 
@@ -644,7 +756,17 @@ p4$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p4
 ```
 
+```{r k means evaluate16, message=FALSE, warning=FALSE}
+# look for mismatches 
+M1$SI.Match <- M1$Cluster == M1$PositionSI
+```
 
+```{r k means evaluate17, message=FALSE, warning=FALSE}
+M1 %>%
+  group_by(SI.Match) %>%
+  tally() %>% 
+  mutate(percent = n / sum(n)*100)
+```
 
 
 ### Final Evaluation 
@@ -654,27 +776,6 @@ p4
 - change cluster names from numeric to equivalent position 
 
 - calculate column for mismatches 
-
-```{r k means evaluate, message=FALSE, warning=FALSE}
-# join players back
-M1[,"Player"] <- df.players$Player_Name
-# as character
-M1$Cluster <- as.character(M1$Cluster)
-# Change cluster names to ~ position
-M1$Cluster[M1$Cluster == "1"] <- "Defender"
-M1$Cluster[M1$Cluster == "2"] <- "Forward"
-M1$Cluster[M1$Cluster == "3"] <- "Midfield"
-M1$Cluster[M1$Cluster == "4"] <- "Ruck"
-# look for mismatches 
-M1$Match <- M1$Cluster == M1$Position
-```
-
-```{r k means evaluate2, message=FALSE, warning=FALSE}
-M1 %>%
-  group_by(Match) %>%
-  tally() %>% 
-  mutate(percent = n / sum(n)*100)
-```
 
 
 # https://www.statsinsider.com.au/afl/player-ratings
@@ -728,7 +829,7 @@ M1.pca.pc3$Player_Top[M1.pca.pc3$Player ==   "Jarrod Witts"] <-  "Jarrod Witts"
 - shows greater separation 
 
 ```{r k means plot (4), message=FALSE, warning=FALSE}
-p4 <-
+p5 <-
 autoplot(M1.pca, 
          data = M1,
          colour = "Cluster",
@@ -745,8 +846,8 @@ autoplot(M1.pca,
       subtitle = "Depicting k = 4 for first two principal components + variable loadings") +
   theme_minimal() +
   plot_theme
-p4$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
-p4
+p5$layers[[2]]$aes_params$size <- 0.1 # change line thickness 
+p5
 ```
 
 
