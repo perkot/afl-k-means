@@ -636,13 +636,9 @@ We will proceed with two measures of a players ground position
 
 **[2]** Assigned player positions sourced from *Stats Insider*
 
+#### Player Position - team sheet
 
-
-### Plot 3 : Player position overlayed with PCA variable loadings
-
-#### Starting Position 
-
-In the below plot we are exchanging the k-means cluster results with the field position groupings, as determined by named position 
+We can quantify exactly how many players cluster group matched their most commonly named starting position:
 
 ```{r k means plot (3), message=FALSE, warning=FALSE}
 # join cluster groupings back to data
@@ -674,12 +670,6 @@ p3$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p3
 ```
 
-On visual inspection, the plot shows pretty close concordance with the cluster results. Two stand-out differences between cluster & ground-truth are that
-
-* midfielders look to *bleed* into the defender group
-* midfielders look to *bleed* into the forward group 
-
-Using tidyverse, we can quantify exactly how many players cluster group matched their most comomnly named starting position:
 
 ```{r k means evaluate, message=FALSE, warning=FALSE}
 # join players back
@@ -719,9 +709,7 @@ Examining these on a case-by-case basis, many of these players position is ambig
 
 Even so inspection of the mismatches does reveal some players for which the cluster algorithm would appear to have got *wrong* (at least wrong in so far as the clusters are a representation of ground-position!). For example, Tom Scully is not known for his forward craft, typically occupying the wings as a midfielder.
 
-### Plot 4 : Player position overlayed with PCA variable loadings
-
-#### Stats Insider
+#### Player Position - Stats Insider
 
 - Extract data
 
@@ -755,6 +743,27 @@ M1$PositionSI[M1$PositionSI == "4"] <- "Ruck"
 
 - Ben McEvoy a defender?
 
+```{r k means evaluate16, message=FALSE, warning=FALSE}
+# look for mismatches 
+M1$SI.Match <- M1$Cluster == M1$PositionSI
+```
+
+```{r k means evaluate17, message=FALSE, warning=FALSE}
+M1 %>%
+  group_by(SI.Match) %>%
+  tally() %>% 
+  mutate(percent = n / sum(n)*100)
+```
+
+```{r k means evaluate3, message=FALSE, warning=FALSE}
+mismatch_position.si <- M1 %>% 
+  filter(SI.Match == FALSE) %>% # only mismatches
+  ddply(.(Cluster, Position), nrow) %>% # count combinations
+  arrange(desc(V1)) # order descending
+mismatch_position.si
+```
+
+
 ```{r k means plot (4), message=FALSE, warning=FALSE}
 # plot now with k means clusters
 p4 <-
@@ -781,17 +790,6 @@ p4$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p4
 ```
 
-```{r k means evaluate16, message=FALSE, warning=FALSE}
-# look for mismatches 
-M1$SI.Match <- M1$Cluster == M1$PositionSI
-```
-
-```{r k means evaluate17, message=FALSE, warning=FALSE}
-M1 %>%
-  group_by(SI.Match) %>%
-  tally() %>% 
-  mutate(percent = n / sum(n)*100)
-```
 
 ## Conclusion 
 
