@@ -1,11 +1,11 @@
 ---
-title: "Using k-means to cluster AFL players based on their match day statistics"
+title: "Determining AFL players field position by match day statistics - PCA & k means"
 author: "Tom Perkins"
 date: "16 January 2021"
 output:
+  pdf_document: default
   prettydoc::html_pretty:
     theme: caymen
-  pdf_document: default
   word_document: default
 ---
 
@@ -89,15 +89,15 @@ colour_theme <- c("#E4796A", "#E7B573", "#f5a253", "#638DCB")
 
 ## Introduction
 
-This markdown provides an introduction to exploratory cluster analysis using principal components analysis & k-means. The goal is to see if Australian Rules Football players can be grouped based upon their gameday output. The analysis will then be evaluated against a [**ground truth**](https://datascience.stackexchange.com/questions/17839/what-is-ground-truth) - a players *field position*, an existing way to group players
+This markdown provides an introduction to cluster analysis using principal components analysis & k-means. The goal is to evaluate if Australian Rules Football players field position can be determined by their match day statistics. Results of the cluster analysis will be evaluated against two different measures of field position - a [**ground truth**](https://datascience.stackexchange.com/questions/17839/what-is-ground-truth) to guide this analysis
 
 The analysis is based upon a dataset I curated in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**, & summarizes *average game-day statistics* such as average number of kicks, handballs & goals per game
 
-This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for detailed AFL statistics 
+This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for AFL statistics 
 
 R users are fortunate that a wealth of data from these websites is accessible via the **["FitzRoy"](https://cran.r-project.org/web/packages/fitzRoy/index.html)** package
 
-To begin, lets load in a .csv extract from this prior analysis 
+To begin, lets load in the data
 
 ```{r data load, results='hide', message=FALSE, warning=FALSE}
 # player data .csv 
@@ -116,15 +116,15 @@ Each of the 950 rows reflects a unique player record
 
 Columns 1:3 provide basic demographics (players name, team, games played). Column four is the ground truth for this dataset: field position
 
-Columns five through 48 are *averaged* statistics (i.e. kicks, handballs, spoils, tacklers per game). These are the columns for which deeper analytics can be conducted
+Columns five through 48 are *averaged* statistics (i.e. kicks, handballs, spoils, tacklers per game). These are the columns we will choose from to perform the k-means cluster analysis 
 
 ## Data preparation
 
-There are two important steps I have taken prior to analysis 
+There are two initial steps which form important assumptions of the analysis 
 
-Firstly, I have removed any player to take part in *less* than 22 games (equivalent to a single full-season). 
+Firstly, I have removed any player to take part in *less* than 22 games (equivalent to a single full-season) 
 
-My reasoning was that players with a small number of games may skew the data. Younger, inexperienced players with a small sample of games will likely have limited output, which for my purposes would be tantamount to statistical noise. Similarly, players with a small number of games due to injury may generate numbers otherwise not reflective of their typical output over a larger sample size
+My reasoning was that players with a small number of games may skew the data. Younger, inexperienced players with a small sample of games will likely have limited output, not typically reflective of the position that they play. Similarly, players with a small number of games due to injury may generate numbers otherwise not reflective of their typical output over a larger sample size
 
 ```{r minimum games, message=FALSE, warning=FALSE}
 # filter to only players who have played at least an entire season worth of games 
@@ -159,13 +159,13 @@ df.players.scaled <- as.data.frame(scale(df.players[,5:48],
 
 As mentioned, this analysis is largely exploratory. Any combination of the 44 match-day metrics could be included to perform a k-means analysis 
 
-However, k-means requires due consideration of what variables are included in the model. A dump of all variables will likely include ineffective variables, which may have a *negative impact* on the result by obscuring useful variance
+However, k-means requires due consideration of what variables are included in the model. A dump of all variables will likely include ineffective variables, which may *negatively impact* on the result by obscuring useful variance
 
-As such, identifying a satisfactory combination of variables is critical to success. Clustering can be an iterative & patient process, that is greatly aided by *subject matter-expertise*. Even then, some degree of trial-&-error is required ... adding & subtracting variables, & documenting the subsequent effect on the output 
+Identifying a satisfactory combination of variables is critical to success. This makes clustering an iterative & patient process, that is aided by *subject matter-expertise*. Even then, some degree of trial-&-error is required : adding & subtracting variables, & documenting the subsequent effect on the output 
 
-The model included here relied upon intuition around what match-day statistics would likely discriminate players, then trial & error of different combinations
+This analysis relied upon intuition around what match-day statistics would likely discriminate players, then trial & error of different combinations
 
-Some metrics were especially conspicuous (i.e. *hitouts* as something likely to distinguish players), whilst others were more ambiguous (*uncontested possessions* seemed less clear in its discriminatory efficacy)
+Some metrics were conspicuous (i.e. *hitouts* as something likely to distinguish players), whilst others were more ambiguous (*uncontested possessions* seemed less clear in its discriminatory efficacy)
 
 The 15 statistics included in the model are summarized below
 
@@ -200,7 +200,7 @@ With our data finalized we can jump into the first-step: **principal components 
 
 Principal Component Analysis (PCA) is a common technique applied *prior* to cluster analysis, but a valuable analysis in its own right. It is a method for **dimensionality-reduction** / **compression** of a dataset. It transforms a "larger set" of variables into a smaller set, that retains *most* of the variance of the larger set in a smaller number of components
 
-Although some information will be lost in compression, the idea is that a small degradation in accuracy is traded-off for an increase in parsimony. Kind of the statistical equivalent of a compressed MP3 retaining much of the quality of an uncompressed WAV file, at a fraction of the file-size
+Although some information will be lost in compression, the idea is that a small degradation in accuracy is traded-off for an increase in parsimony - a statistical equivalent of a compressed MP3 retaining much of the quality of an uncompressed WAV file, at a fraction of the file-size
 
 Thus, *Principal components* are new variables, derived mathematically from a linear combination of the initial variables. 
 
@@ -212,7 +212,7 @@ As mentioned, standardization is critical for PCA. The reason being that it is q
 
 PCA can be [beneficial for noise reduction](https://stats.stackexchange.com/questions/183236/what-is-the-relation-between-k-means-clustering-and-pca#:~:text=clustering%20pca%20k%2Dmeans,in%20practice%20(noise%20reduction).), although this benefit is tenuous & dependent on the data 
 
-PCA does have one very obvious benefit to cluster analysis - it allows for simpler visualization of results. It is nigh on impossible to provide a simple summary visualization of higher-dimensional data. As such, dimensional reduction allows for more information from the analysis to be visualized in a two-dimensional format
+PCA does have one very obvious benefit to cluster analysis - it allows for simpler visualization of results. It is nigh on impossible to provide a simple summary visualization of higher-dimensional data. As such, dimensional reduction allows for more information from the analysis to be visualized in a two-dimensional format. Later, I will combine results of PCA & k-means into single visualizations 
 
 ### Covariance Matrix Computation
 
@@ -233,7 +233,7 @@ The first principal component is mathematically derived to:
 (1) **Maximize variance** - i.e. the highest spread of values along line of best fit - calculated as an average of the squared distances 
 (2) **Minimize Error** - i.e. the shortest distance of data points from their position on the line of best fit, calculated as an average of the squared distances from the projected points
 
-The sum of *variance* & *error* is constant, so the statistical sorcery of PCA is a best fitting line that both maximizes variance & minimizes error
+The sum of *variance* & *error* is constant, so the statistical benefit of PCA is a best fitting line that both maximizes variance & minimizes error
 
 **Eigenvectors** are the **directions** of the axes that possess the most variance, and the **eigenvalues** are a numerical indicator (coefficient) expressing the **amount** of variance in each principal component. The smallest eigenvalues correspond to the directions with the least variation
 
@@ -241,7 +241,7 @@ The second principal component is then calculated in precisely the same way, wit
 
 [This link](https://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues) provides a more in depth guide to principal components, alongside some amazing two-dimensional animations illustrating the concept of maximizing variance & minimizing error
 
-The mathematics of PCA is quite complex, but fortunately, the programming is very straight-forward & can be completed in a line-of-code  
+The mathematics of PCA is quite complex, but the programming is very straight-forward & can be completed in a line-of-code  
 
 ```{r PCA (1), message=FALSE, warning=FALSE}
 # PCA Model
@@ -297,7 +297,7 @@ For the first three principal components, we can crudely summarize which variabl
 **PC 2** - Score Launches / Hitouts to Advantage
 **PC 3** - Uncontested Possessions / contested possessions / Rebounds
 
-Further, we can visualize **all** of the variable loadings for the *first two* principal components. Each point on the plot reflects an individual player. The x-axis depicts PC1, whislt the y-axis depicts PC2
+Further, we can visualize **all** of the variable loadings for the *first two* principal components. Each point on the plot reflects an individual player. The x-axis depicts PC1, whilst the y-axis depicts PC2
 
 ```{r PCA (5), message=FALSE, warning=FALSE}
 p1 <- 
@@ -338,11 +338,11 @@ M1.pca.pc3 <- data.frame(M1.pca$x[,1:3])
 
 ## k-means 
 
-**"Clustering"** is a technique used to explore sub-groups of observations within a data set. Observations are grouped in such a way that they are more similar to one another (by some statistical criteria), than to observations in other groups
+**"Clustering"** is a technique used to explore sub-groups of observations within a data set. Observations are grouped in such a way that they are more similar to one another (by some statistical criteria), than to observations assigned to other groups
 
 **k-means clustering** is probably the most common algorithm for partitioning 
 
-k-means 'groups' observations (i.e. players) to their nearest mean. In this case *nearest* denotes the mean with the least squared *Euclidean distance*. Means in k-means analysis are calculated as **centroids** - the arithmetic average position of all of the points in the cluster. Clusters are defined such that the total **within-cluster sum of square (WSS)** is minimized
+k-means 'groups' observations (in this case players) to their nearest mean. In this case *nearest* denotes the mean with the least squared *Euclidean distance*. Means in k-means analysis are calculated as **centroids** - the arithmetic average position of all of the points in the cluster. Clusters are defined such that the total **within-cluster sum of square (WSS)** is minimized
 
 **'k'** represents the number of clusters the data will be separated into. Determining k is an important *a priori* decision for the analysis
 
@@ -357,7 +357,9 @@ For more information on k-means/principal components analysis, [this towards dat
 As mentioned, the number for *k* is a decision for the analyst. Generally, the value for k is best determined by corroborating 
 
 (a) **knowledge around the data** - ground truths or known groupings & 
-(b) **optimization methods** -  to determine which value of k best minimizes WSS. 
+(b) **optimization methods** -  to determine which value of k best minimizes WSS
+
+As mentioned we have a ground truth for this analysis (field position). However, field position can be divided into broad categories, or more granular sub-categories. As such, optimization methods are still valuable to quantify the relationship between game day statistics and how players can be grouped
 
 Below I have applied two of the most popular optimization methods for determining k
 
@@ -457,8 +459,7 @@ It would be premature to outright dismiss the results as *artificial*. This is w
 
 With a **k value** established, running k-means analysis is straight forward. We will specify two additional arguments 
 
-**nstart = 25** : The number of times the initial starting points are re-sampled.
-It looks for the initial starting points that have the lowest WSS
+**nstart = 25** : The number of times the initial starting points are re-sampled. It looks for the initial starting points that have the lowest WSS
 
 **iter.max = 1000** : the number of times the algorithm will repeat the cluster assignment and moving of centroids
 
@@ -621,7 +622,7 @@ You can see quite clearly that greater cluster separation occurs when limiting t
 
 #### Ground Truth 
 
-As alluded to, we have a pre-existing grouping variable - players **ground position**. In Australian rules, there are four over-arching positions (midfielders, rucks, defenders & forwards). This provides some encouraging validation of the the Elbow & Silhouette Plots, which both indicated k = 4 clusters 
+As alluded to, we have a pre-existing way of grouping players - their **field position**. In Australian rules, there are four over-arching positions (midfielders, rucks, defenders & forwards). This provides some encouraging validation of the the Elbow & Silhouette Plots which both indicated k = 4 clusters 
 
 Player position is uncontroversial, but exactly how it is measured / quantified is a little trickier. Complicating factors include:
 
@@ -631,11 +632,11 @@ Player position is uncontroversial, but exactly how it is measured / quantified 
 
 So although the ground truth in this context provides a compass of sorts for understanding the k-means results, it isn't an immutable truth universal to all circumstances, or observations 
 
-We will proceed with two measures of a players ground position 
+We will proceed with two methods for determining a players field position
 
-**[1]** Assigning player position based upon the most frequent part of the ground they are named on the team sheet
+**[1]** The most frequent part of the ground a player is listed on the team sheet
 
-**[2]** Assigned player positions sourced from *Stats Insider*
+**[2]** Assigned position, sourced & defined by *Stats Insider*
 
 #### Player Position - team sheet
 
@@ -671,7 +672,6 @@ p3$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p3
 ```
 
-
 ```{r k means evaluate, message=FALSE, warning=FALSE}
 # join players back
 M1[,"Player"] <- df.players$Player_Name
@@ -704,19 +704,21 @@ mismatch_position.s <- M1 %>%
 mismatch_position.s
 ```
 
-The majority of mismatches (67%) were players whose starting position was as a midfielder, but the cluster defined as either a defender or forward
+The majority of mismatches (59/87, 67%) were players whose starting position was as a midfielder, but the cluster defined them as either a defender or forward
 
 Examining these on a case-by-case basis, many of these players position is ambiguous to begin with. For example, the cluster algorithm designated Dustin Martin as a midfielder, while the *ground truth*, based on his named position in the team was as a forward. This edge case is perhaps revealing of a limitation of this analysis. Beholding players positions to the broad categories of midfielder, defender, forward, or ruck may be too limiting. Dustin Martin is probably better captured as a *utility*, or a hybrid *midfield-forward*
 
-Even so inspection of the mismatches does reveal some players for which the cluster algorithm would appear to have got *wrong* (at least wrong in so far as the clusters are a representation of ground-position!). For example, Tom Scully is not known for his forward craft, typically occupying the wings as a midfielder.
+Even so inspection of the mismatches does reveal some players for which the cluster algorithm would appear to have got entirely *wrong* (at least wrong in so far as the clusters are a representation of ground-position!). For example, Tom Scully is not known to play forward in any capacity, typically occupying the wings as a midfielder.
 
 #### Player Position - Stats Insider
 
-- Extract data
+Popular sporting website Stats Insider provided another simple online resource, that included the field position for AFl players. This comes from their previously referenced [*AFL player ratings*](https://www.statsinsider.com.au/blog/afl/explaining-the-stats-insider-afl-player-ratings)
 
 ```{r k means plot (4) pre-work, message=FALSE, warning=FALSE}
 positions.SI <- read.csv("afl_stats_position_stats_insider.csv")
 ```
+
+Stats Insider provides a more granular definition of field position, so for the purposes of comparison to the present model, I have rolled them up to there *parent* position
 
 ```{r k means plot (4) pre-work2, message=FALSE, warning=FALSE}
 # Re-group to 4 position types 
@@ -728,6 +730,8 @@ positions.SI$PositionSI[positions.SI$Position ==   "Mid"] <-  "Midfield"
 positions.SI$PositionSI[positions.SI$Position ==   "Ruck"] <-  "Ruck"
 ```
 
+As per previously, we can directly compare field position to the models assigned grouping
+
 ```{r}
 # limit df to two columns of interest
 positions.SI <- positions.SI %>% 
@@ -735,7 +739,6 @@ positions.SI <- positions.SI %>%
 # join stats insider positions to df 
 M1 <- left_join(M1, positions.SI, by = "Player")
 ```
-
 
 ```{r}
 # a couple of discrepant players - fill in with known position type 
@@ -749,10 +752,6 @@ M1$PositionSI[M1$PositionSI == "2"] <- "Forward"
 M1$PositionSI[M1$PositionSI == "3"] <- "Midfield"
 M1$PositionSI[M1$PositionSI == "4"] <- "Ruck"
 ```
-
-- plot this 
-
-- Ben McEvoy a defender?
 
 ```{r k means evaluate16, message=FALSE, warning=FALSE}
 # look for mismatches 
@@ -774,8 +773,20 @@ mismatch_position.si <- M1 %>%
 mismatch_position.si
 ```
 
+Ben McEvoy
+Bryce Gibbs
+Jack Watts
+
+Career outputs versus current position as of season
 
 ```{r k means plot (4), message=FALSE, warning=FALSE}
+# coerce to factor 
+M1$PositionSI <- as.factor(M1$PositionSI)
+
+M1.pca.pc3$Player_Diff[M1.pca.pc3$Player ==  "Ben McEvoy"] <- "Ben McEvoy"
+M1.pca.pc3$Player_Diff[M1.pca.pc3$Player ==  "Bryce Gibbs"] <- "Bryce Gibbs"
+M1.pca.pc3$Player_Diff[M1.pca.pc3$Player ==  "Jack Watts"] <- "Jack Watts"
+
 # plot now with k means clusters
 p4 <-
 autoplot(M1.pca, 
@@ -783,16 +794,20 @@ autoplot(M1.pca,
          colour = "PositionSI", # need to join k$clust back to M1
          loadings = TRUE, 
          loadings.colour = '#666257',
-         loadings.size = 0.5,
-         loadings.label.colour = '#666257',
-         loadings.label = TRUE,
-         loadings.label.size = 2,
-         loadings.label.repel = T
+         loadings.size = 0.5
+         # loadings.label.colour = '#666257',
+         # loadings.label = TRUE,
+         # loadings.label.size = 2,
+         # loadings.label.repel = T
          ) +
   scale_colour_manual(values = colour_theme) +
   scale_x_continuous(name = "Principal Component 1 (37.4%)") +
   scale_y_continuous(name = "Principal Component 2 (27.3%)") +
   geom_point(alpha = 0.01) +
+  geom_text(vjust=-1, 
+          label=M1.pca.pc3$Player_Diff,
+          size = 2,
+          colour = "#4E4F4E") +
       labs(title = "Cluster Plot",
       subtitle = "Depicting player position for first two principal components + variable loadings") +
   theme_minimal() +
