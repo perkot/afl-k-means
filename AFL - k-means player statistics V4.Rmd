@@ -746,7 +746,7 @@ M1$PositionSI <- ifelse(is.na(M1$PositionSI), M1$Position, M1$PositionSI)
 ```
 
 ```{r}
-# Change these so their cluster name is not numeric 
+# Change cluster grouping to ground truth 
 M1$PositionSI[M1$PositionSI == "1"] <- "Defender"
 M1$PositionSI[M1$PositionSI == "2"] <- "Forward"
 M1$PositionSI[M1$PositionSI == "3"] <- "Midfield"
@@ -765,6 +765,8 @@ M1 %>%
   mutate(percent = n / sum(n)*100)
 ```
 
+~ **83%** of players cluster/position matched to stats insider field positions. Thus, a similar level of accuracy, with a relatively similar profile of misclassifications 
+
 ```{r k means evaluate3, message=FALSE, warning=FALSE}
 mismatch_position.si <- M1 %>% 
   filter(SI.Match == FALSE) %>% # only mismatches
@@ -773,11 +775,7 @@ mismatch_position.si <- M1 %>%
 mismatch_position.si
 ```
 
-Ben McEvoy
-Bryce Gibbs
-Jack Watts
-
-Career outputs versus current position as of season
+Reviewing specific players to be classified incorrectly reveals an important difference in the nature of the data used for classification, & assigned field position. Stats Insider classifications were based upon players *current* position. For example, in the 2020 season, Ben McEvoy who had typically played as a ruckman was being trialed in a defensive role. Similarly, Jack Watts who had played most of his career forward was similarly being trialed in defense. Thus, rather than reflecting measurement error, the discrepant groupings reflect alternative definitions of field position (current versus historic)
 
 ```{r k means plot (4), message=FALSE, warning=FALSE}
 # coerce to factor 
@@ -816,9 +814,9 @@ p4$layers[[2]]$aes_params$size <- 0.1 # change line thickness
 p4
 ```
 
-
 ## Conclusion 
 
+This guide provided an introductory guide to PCA & k-means. Based on statistical output alone, the model provides a reasonably accurate segmentation of players by their field position. Discrepancies between the ground truth & model output can mostly be explained by different assumptions to define field position (historic versus current playing position), & edge cases with ambiguous positions (i.e. utilities)
 
 
 
