@@ -688,13 +688,6 @@ p3
 M1[,"Player"] <- df.players$Player_Name
 # as character
 M1$Cluster <- as.character(M1$Cluster)
-
-# Print table 
-M1 %>% 
-  select(Player, Cluster) %>%
-  kable() %>% #head limits to just top rows
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
-
 ```
 
 ```{r k means evaluate1, message=FALSE, warning=FALSE, echo=FALSE}
@@ -783,6 +776,11 @@ M1 <- left_join(M1, positions.SI, by = "Player")
 ```{r SI data mung 2, echo=FALSE}
 # a couple of discrepant players - fill in with known position type 
 M1$PositionSI <- ifelse(is.na(M1$PositionSI), M1$Position, M1$PositionSI)
+
+# M1 %>% 
+#   select(Player, PositionSI) %>%
+#   kable() %>% #head limits to just top rows
+#   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
 ```
 
 ```{r SI data mung 3, echo=FALSE}
@@ -794,23 +792,21 @@ M1$PositionSI[M1$PositionSI == "4"] <- "Ruck"
 ```
 
 ```{r k means evaluate16, message=FALSE, warning=FALSE, echo=FALSE}
-
-M1$SI.Match <- ifelse(M1$Cluster == M1$PositionSI, "match", 
-                      ifelse(M1$Cluster != M1$PositionSI, "no match", "none"))
-
-
 # look for mismatches 
-# M1$SI.Match <- M1$Cluster == M1$PositionSI
+M1$SI.Match <- M1$Cluster == M1$PositionSI
 
 # M1$SI.Match[M1$SI.Match == "TRUE"] <- "MATCH"
 # M1$SI.Match[M1$SI.Match == "FALSE"] <- "NO MATCH"
 # table(M1['SI.Match'])
 
+# M1$SI.Match <- ifelse(M1$Cluster == M1$PositionSI, "match", 
+#                       ifelse(M1$Cluster != M1$PositionSI, "no match", "none"))
+
 # Print table 
-M1 %>% 
-  select(Player, SI.Match, Cluster, PositionSI) %>%
-  kable() %>% #head limits to just top rows
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
+# M1 %>% 
+#   select(Player, SI.Match, Cluster, PositionSI) %>%
+#   kable() %>% #head limits to just top rows
+#   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", font_size = 8))
 
 ```
 
@@ -834,7 +830,7 @@ SI %>%
 
 ```{r k means evaluate18, message=FALSE, warning=FALSE}
 mismatch_position.si <- M1 %>% 
-  filter(SI.Match == "no match") %>% # only mismatches
+  filter(SI.Match == "FALSE") %>% # only mismatches
   ddply(.(Cluster, Position), nrow) %>% # count combinations
   arrange(desc(V1)) # order descending
 mismatch_position.si
