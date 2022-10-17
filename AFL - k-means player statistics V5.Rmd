@@ -15,7 +15,7 @@ output:
 
 <font size="4">This markdown provides an introduction to cluster analysis using principal components analysis & k-means. The goal is to evaluate if Australian Rules Football players field position can be determined by their match day statistics. Results of the cluster analysis will be evaluated against two different measures of field position - a [**ground truth**](https://datascience.stackexchange.com/questions/17839/what-is-ground-truth) to guide this analysis
 
-The analysis is based upon a dataset I curated in a **["previous analysis"(https://perkot.github.io/afl-stats/)]**, & summarizes *average game-day statistics* such as average number of kicks, handballs & goals per game
+The analysis is based upon a dataset I curated in a **["previous analysis"](https://perkot.github.io/afl-stats/)**, & summarizes *average game-day statistics* such as average number of kicks, handballs & goals per game
 
 This data was sourced from [AFLTables](https://afltables.com/afl/afl_index.html) & [Footywire](https://www.footywire.com/) - two of the best online resources for AFL statistics 
 
